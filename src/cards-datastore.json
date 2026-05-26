@@ -1,0 +1,63 @@
+[
+    {
+        "id": "opdSummary",
+        "name": "OPD Summary",
+        "accessAt": "everywhere | enrollment-dashboard | new-edit-event | view-event",
+        "sections": [
+            {
+                "id": "1",
+                "type": "single",
+                "title": "Patient Details",
+                "htmlBody": "<table border='0' cellpadding='0' cellspacing='0' width='100%'><tr><td><table border='0' cellpadding='0' cellspacing='0' width='100%' style='border-collapse:collapse'><tr style='background:#ececec'><th width='10%' style='border-top:1px solid;border-left:1px solid'><img src='https://hmis.gov.np/assets/frontend/uploads/img/logo.png' width='80'></th><th style='border-top:1px solid;border-right:1px solid'>नेपाल सरकार<br>स्वास्थ्य तथा जनसंख्या मन्त्रालय<br>स्वास्थ्य सेवा बिभाग<br>स्वास्थ्य व्यवस्थापन सूचना प्रणाली</th></tr><tr style='background:#ececec'><td colspan='2' style='text-align:center;border-left:1px solid;border-right:1px solid'><br><br>जिल्ला: ------------ स्वास्थ्य संस्थाको नाम: ------------</td></tr><tr><td colspan='2' style='border:1px solid #000'><h2 style='text-align:center'><br>स्वास्थ्य सेवा कार्ड</h2></td></tr></table></td></tr><tr><td>&nbsp;</td></tr><tr><td><table cellpadding='5' cellspacing='0' width='100%' style='border-collapse:collapse'><tr><th style='border:1px solid'>मूल दर्ता नं.</th><th style='border:1px solid;border-collapse:collapse'>{q3NpuWzGvso}</th><th style='border:1px solid;border-collapse:collapse'>नाम, थर</th><th style='border:1px solid'>जाति कोड</th><th style='border:1px solid'>लिङ्ग</th><th style='border:1px solid'>उमेर</th></tr><tr><td style='border:1px solid'>ORC दर्ता नं.</td><td style='border:1px solid'>&nbsp;</td><td style='border:1px solid'>{yBYTz1M15tf} {MqBkcXtzszn}</td><td style='border:1px solid'>{yifOETNxcrj}</td><td style='border:1px solid'>{RzyHxE71iyC}</td><td style='border:1px solid'>{WPekgdeclbX}</td></tr></table></td></tr><tr><td>&nbsp;</td></tr><tr><td><table border='0' cellpadding='0' cellspacing='0' width='100%' style='border-collapse:collapse'><tr><th rowspan='2' style='border:1px solid'>ठेगाना</th><th style='border:1px solid'>जिल्ला, नगर/गाउँपालिका</th><th style='border:1px solid'>वडा नं.</th><th style='border:1px solid'>सम्पर्क नं.</th></tr><tr><td style='border:1px solid'>{SbNxjxMkC0w}</td><td style='border:1px solid'>{mDR6zfT5lEl}</td><td style='border:1px solid'>{EWFhOqCrPBX}</td></tr></table></td></tr><tr><td>&nbsp;</td><tr><tr><td><table border='1' cellpadding='5' cellspacing='0' width='100%' style='border-collapse:collapse'>",
+                "htmlFooter": "",
+                "htmlHeader": ""
+            },
+            {
+                "id": "2",
+                "type": "repeatable",
+                "title": "Clinical Summary",
+                "htmlBody": "<tr><td>{event.occurredAt}</td><td>&nbsp;</td><td>{Ywk0nodmiOh}</td><td>&nbsp;</td></tr></table></td></tr>",
+                "htmlFooter": "<tr><td><div class='footer'>हरेक पटक आउँदा यो पूर्जा अनिवार्य रूपमा लिएर आउनु होला।</div></td></tr></table>",
+                "htmlHeader": "<tr><th>मिति</th><th>ओ.पि.डि. दर्ता नं.</th><th>शिकायत / निवेदन</th><th>उपचार र सल्लाह</th></tr>",
+                "programStage": "bqd9yievDDw"
+            }
+        ],
+        "optionSets": {
+            "RzyHxE71iyC": "AGLA63Kgt23",
+            "SbNxjxMkC0w": "PbpBkK5gFeQ",
+            "Ywk0nodmiOh": "JxbeJPmpsxw",
+            "yifOETNxcrj": "nb4deJCI4Vg"
+        }
+    },
+    {
+        "id": "immunizationCard",
+        "name": "Immunization Card",
+        "accessAt": "everywhere | enrollment-dashboard | new-edit-event | view-event",
+        "sections": [
+            {
+                "id": "1",
+                "type": "single",
+                "title": "Patient Summary",
+                "htmlBody": "<h2 style='text-align:center'>स्वास्थ्य सेवा कार्ड</h2><table border='1' cellpadding='5' cellspacing='0' width='100%'><tr><th>मूल दर्ता नं.</th><th>{q3NpuWzGvso}</th><th>नाम, थर</th><th>जाति कोड</th><th>लिङ्ग</th><th>उमेर</th></tr><tr><td>ORC दर्ता नं.</td><td>&nbsp;</td><td>{yBYTz1M15tf} {MqBkcXtzszn}</td><td>{yifOETNxcrj}</td><td>{RzyHxE71iyC}</td><td>{WPekgdeclbX}</td></tr></table><br/><table border='1' cellpadding='5' cellspacing='0' width='100%'><tr><th rowspan='2'>ठेगाना</th><th>जिल्ला, नगर/गाउँपालिका</th><th>वडा नं.</th><th>सम्पर्क नं.</th></tr><tr><td>{SbNxjxMkC0w}</td><td>{mDR6zfT5lEl}</td><td>{EWFhOqCrPBX}</td></tr></table>",
+                "htmlFooter": "<br/>",
+                "htmlHeader": "",
+                "programStage": ""
+            },
+            {
+                "id": "2",
+                "type": "single",
+                "title": "Immunization Summary",
+                "htmlBody": "<table border='1' cellspacing='0' cellpadding='5' width='100%'><tr class='title-row'><th colspan='8'>खोप लगाएको विवरण</th></tr><tr><th class='age-header'>खोपको नाम</th><th class='header-cell'>जन्मिने बित्तिकै</th><th class='header-cell'>६ हप्ता</th><th class='header-cell'>१० हप्ता</th><th class='header-cell'>१४ हप्ता</th><th class='header-cell'>९ महिना</th><th class='header-cell'>१२ महिना</th><th class='header-cell'>१५ महिना</th></tr><tr><td class='age-header'>बि.सि.जी.</td><td class='tick'>{NTuXLeAoj9B.createdAt}</td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td></tr><tr><td class='age-header'>रोटा</td><td style='background:#9a8f57'></td><td class='tick'>{LSncfNQLHlz.createdAt}</td><td class='tick'>{AUW3h0xHwi9.createdAt}</td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td></tr><tr><td class='age-header'>ओ.पि.भी.</td><td style='background:#9a8f57'></td><td class='tick'>{KmQ5NdKGDbt.createdAt}</td><td class='tick'>{beVYVe5xjb9.createdAt}</td><td class='tick'>{xJAa45jgF7z.createdAt}</td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td></tr><tr><td class='age-header'>एफ.आइ.पी.भी.</td><td style='background:#9a8f57'></td><td class='tick'>{XUQD9MdvGjl.createdAt}</td><td style='background:#9a8f57'></td><td class='tick'>{IEhmh3XJh4p.createdAt}</td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td></tr><tr><td class='age-header'>पि.सि.भी.</td><td style='background:#9a8f57'></td><td class='tick'>{oBXpBTYPDjH.createdAt}</td><td class='tick'>{C0wczKK4RZ7.createdAt}</td><td style='background:#9a8f57'></td><td class='tick'>{CiKqJ0tZCjo.createdAt}</td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td></tr><tr><td class='age-header'>डी.पि.टी.-हेप-बि-हिब</td><td style='background:#9a8f57'></td><td class='tick'>{U0o7WP7mk3D.createdAt}</td><td class='tick'>{mLUUUf1nsgR.createdAt}</td><td class='tick'>{vGHA6uMfic7.createdAt}</td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td></tr><tr><td class='age-header'>दादुरा-रुबेला</td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td class='tick'>{LQGaoAmlzeF.createdAt}</td><td style='background:#9a8f57'></td><td class='tick'>{WiIoLTPOaOu.createdAt}</td></tr><tr><td class='age-header'>ज.इ.</td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td class='tick'>{THSgNndWpUg.createdAt}</td><td style='background:#9a8f57'></td></tr><tr><td class='age-header'>टि.डि.</td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td style='background:#9a8f57'></td><td class='tick'></td></tr></table>",
+                "htmlFooter": "<div class='footer'>हरेक पटक आउँदा यो पूर्जा अनिवार्य रूपमा लिएर आउनु होला।</div>",
+                "htmlHeader": "",
+                "programStage": "ggZRUXAwCsO"
+            }
+        ],
+        "optionSets": {
+            "RzyHxE71iyC": "AGLA63Kgt23",
+            "SbNxjxMkC0w": "PbpBkK5gFeQ",
+            "Ywk0nodmiOh": "JxbeJPmpsxw",
+            "yifOETNxcrj": "nb4deJCI4Vg"
+        }
+    }
+]

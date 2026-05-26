@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="ne">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>प्रेषण/स्थानान्तरण पूर्जा</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <style>
+        /* ── Screen styles ── */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Noto Sans Devanagari', 'Arial Unicode MS', Arial, sans-serif;
+            background: #d0d0d0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            gap: 12px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            background: #fff;
+            padding: 10px 18px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .controls button {
+            padding: 7px 18px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .btn-print  { background: #1a6bb5; color: #fff; }
+        .btn-load   { background: #2e7d32; color: #fff; }
+        .btn-fhir   { background: #6a1b9a; color: #fff; }
+        .btn-clear  { background: #c62828; color: #fff; }
+
+        #status-bar {
+            width: 794px;
+            padding: 8px 14px;
+            border-radius: 4px;
+            font-size: 13px;
+            display: none;
+        }
+        #status-bar.info    { background:#e3f2fd; border:1px solid #90caf9; color:#0d47a1; display:block; }
+        #status-bar.success { background:#e8f5e9; border:1px solid #a5d6a7; color:#1b5e20; display:block; }
+        #status-bar.error   { background:#ffebee; border:1px solid #ef9a9a; color:#b71c1c; display:block; }
+
+        /* ── Slip wrapper ── */
+        #slip {
+            width: 794px;
+            background: #fff;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            padding: 18px 22px;
+            font-size: 11.5px;
+            line-height: 1.5;
+        }
+
+        /* ── Header ── */
+        .slip-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            margin-bottom: 6px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 8px;
+        }
+
+        .slip-header img {
+            width: 64px;
+            height: 64px;
+            object-fit: contain;
+        }
+
+        .slip-header-text {
+            text-align: center;
+        }
+
+        .slip-header-text .line1 { font-size: 13px; font-weight: 700; }
+        .slip-header-text .line2 { font-size: 12px; font-weight: 600; }
+        .slip-header-text .line3 { font-size: 11.5px; }
+        .slip-header-text .line4 { font-size: 11.5px; }
+        .slip-header-text .title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-top: 4px;
+            text-decoration: underline;
+        }
+
+        /* ── Date row ── */
+        .date-row {
+            text-align: right;
+            font-size: 11px;
+            margin: 4px 0 6px;
+        }
+
+        /* ── Field rows ── */
+        .field-row {
+            display: flex;
+            gap: 0;
+            margin-bottom: 5px;
+            align-items: baseline;
+            flex-wrap: wrap;
+        }
+
+        .field-label {
+            white-space: nowrap;
+            font-weight: 600;
+            min-width: fit-content;
+        }
+
+        .field-value {
+            border-bottom: 1px solid #333;
+            flex: 1;
+            min-width: 80px;
+            padding: 0 4px;
+            min-height: 16px;
+        }
+
+        .field-gap { width: 20px; flex-shrink: 0; }
+
+        /* ── Vitals table ── */
+        .vitals-wrapper {
+            margin: 8px 0;
+        }
+
+        .vitals-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        .vitals-table th,
+        .vitals-table td {
+            border: 1px solid #333;
+            padding: 3px 5px;
+            text-align: center;
+        }
+
+        .vitals-table th { background: #f0f0f0; font-weight: 700; }
+
+        .avasta-cell {
+            writing-mode: horizontal-tb;
+            font-weight: 700;
+            font-size: 11px;
+            padding: 3px 5px;
+        }
+
+        /* ── Two-column layout ── */
+        .two-col {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 5px;
+        }
+
+        .col-left  { flex: 1.4; }
+        .col-right { flex: 1; border: 1px solid #333; padding: 6px; }
+
+        .col-right-title {
+            text-align: center;
+            font-weight: 700;
+            border-bottom: 1px solid #333;
+            margin: -6px -6px 5px -6px;
+            padding: 3px 6px;
+            background: #f0f0f0;
+            font-size: 11px;
+        }
+
+        /* ── Sputum table ── */
+        .sputum-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10.5px;
+            margin-top: 4px;
+        }
+
+        .sputum-table th,
+        .sputum-table td {
+            border: 1px solid #333;
+            padding: 2px 4px;
+            text-align: center;
+        }
+
+        .sputum-table th { background: #f0f0f0; font-weight: 700; }
+
+        /* ── Signature section ── */
+        .signature-section {
+            margin-top: 12px;
+            border-top: 1px solid #333;
+            padding-top: 8px;
+        }
+
+        .refer-line {
+            margin-bottom: 6px;
+            font-size: 11.5px;
+        }
+
+        .referral-body {
+            font-size: 11px;
+            margin: 8px 0;
+            line-height: 1.8;
+        }
+
+        .sig-row {
+            display: flex;
+            gap: 30px;
+            margin-top: 18px;
+            align-items: flex-end;
+        }
+
+        .sig-item {
+            flex: 1;
+            text-align: center;
+        }
+
+        .sig-item .sig-line {
+            border-bottom: 1px solid #333;
+            min-height: 30px;
+            margin-bottom: 4px;
+        }
+
+        .sig-item .sig-label { font-weight: 700; font-size: 11px; }
+
+        /* ── Footer note ── */
+        .footer-note {
+            margin-top: 10px;
+            border: 1px solid #333;
+            padding: 6px 10px;
+            font-size: 10.5px;
+            background: #fafafa;
+        }
+
+        .footer-note strong { font-weight: 700; }
+
+        /* ── Inline field helper ── */
+        .inline-field {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 3px;
+        }
+
+        .inline-field .field-value {
+            min-width: 60px;
+        }
+
+        /* ── Print styles ── */
+        @media print {
+            body {
+                background: #fff;
+                padding: 0;
+            }
+            .controls, #status-bar { display: none !important; }
+            #slip {
+                box-shadow: none;
+                width: 100%;
+                padding: 10mm 12mm;
+                font-size: 11px;
+            }
+            @page {
+                size: A4;
+                margin: 8mm;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Controls ── -->
+<div class="controls">
+    <button class="btn-load"  id="btn-load">📥 Load from DHIS2</button>
+    <button class="btn-fhir"  id="btn-fhir">🔗 Send to FHIR</button>
+    <button class="btn-print" id="btn-print">🖨️ Print Slip</button>
+    <button class="btn-clear" id="btn-clear">🗑️ Clear</button>
+</div>
+
+<div id="status-bar"></div>
+
+<!-- ══════════════════════════════════════════
+     TRANSFER SLIP
+═══════════════════════════════════════════ -->
+<div id="slip">
+
+    <!-- Header -->
+    <div class="slip-header">
+        <!-- Nepal government emblem placeholder -->
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/Coat_of_arms_of_Nepal.svg/200px-Coat_of_arms_of_Nepal.svg.png"
+             alt="Nepal Emblem" onerror="this.style.display='none'">
+        <div class="slip-header-text">
+            <div class="line1">नेपाल सरकार</div>
+            <div class="line2">स्वास्थ्य तथा जनसङ्ख्या मन्त्रालय</div>
+            <div class="line3">स्वास्थ्य सेवा विभाग</div>
+            <div class="line4">स्वास्थ्य व्यवस्थापन सूचना प्रणाली</div>
+            <div class="title">प्रेषण/स्थानान्तरण &nbsp; पूर्जा</div>
+        </div>
+    </div>
+
+    <!-- Date -->
+    <div class="date-row">
+        मिति: <span id="slip-date">.... / .... / २०....</span>
+    </div>
+
+    <!-- Row 1: Facility name & Contact -->
+    <div class="field-row">
+        <span class="field-label">१. संस्थाको नाम, ठेगाना:</span>
+        <span class="field-value" id="facility-name"></span>
+        <span class="field-gap"></span>
+        <span class="field-label">२. सम्पर्क न.:</span>
+        <span class="field-value" id="facility-contact" style="max-width:140px;"></span>
+    </div>
+
+    <!-- Row 2: Patient name, gender, age -->
+    <div class="field-row">
+        <span class="field-label">३. सेवाग्राहीको नाम, थर:</span>
+        <span class="field-value" id="patient-name"></span>
+        <span class="field-gap"></span>
+        <span class="field-label">४. लिङ्ग:</span>
+        <span class="field-value" id="patient-gender" style="max-width:80px;"></span>
+        <span class="field-gap"></span>
+        <span class="field-label">५. उमेर:</span>
+        <span class="field-value" id="patient-age" style="max-width:60px;"></span>
+    </div>
+
+    <!-- Row 3: Address -->
+    <div class="field-row">
+        <span class="field-label">६. ठेगाना:&nbsp;&nbsp; जिल्ला:</span>
+        <span class="field-value" id="patient-district" style="max-width:120px;"></span>
+        <span class="field-gap"></span>
+        <span class="field-label">नगर/गाउँपालिका:</span>
+        <span class="field-value" id="patient-municipality"></span>
+        <span class="field-gap"></span>
+        <span class="field-label">वडा न.:</span>
+        <span class="field-value" id="patient-ward" style="max-width:50px;"></span>
+    </div>
+
+    <!-- Row 4: Services & Contact date -->
+    <div class="field-row">
+        <span class="field-label">७. लिइरहेको सेवा:</span>
+        <span class="field-value" id="services-taken"></span>
+        <span class="field-gap"></span>
+        <span class="field-label">८. सम्पर्क गर्नुपर्ने मिति:</span>
+        <span class="field-value" id="contact-date" style="max-width:50px;"></span>
+        <span style="padding:0 2px;">/</span>
+        <span class="field-value" id="contact-date-2" style="max-width:50px;"></span>
+        <span style="padding:0 2px;">/</span>
+        <span class="field-label" style="font-weight:400;">(ग.म.सा.)</span>
+    </div>
+
+    <!-- Vitals table -->
+    <div class="vitals-wrapper">
+        <table class="vitals-table">
+            <thead>
+                <tr>
+                    <th style="width:40px;">९.</th>
+                    <th>BP</th>
+                    <th>Pulse</th>
+                    <th>Temp</th>
+                    <th>Respiration</th>
+                    <th>Weight (kg)</th>
+                    <th>Height (cm)</th>
+                    <th>MUAC (mm)</th>
+                    <th>Edema on both Feet<br><span style="font-weight:400;">(+/++/+++)</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="avasta-cell">अवस्था:</td>
+                    <td id="v-bp"></td>
+                    <td id="v-pulse"></td>
+                    <td id="v-temp"></td>
+                    <td id="v-resp"></td>
+                    <td id="v-weight"></td>
+                    <td id="v-height"></td>
+                    <td id="v-muac"></td>
+                    <td id="v-edema"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Two column section -->
+    <div class="two-col">
+        <!-- Left side -->
+        <div class="col-left">
+            <div class="field-row">
+                <span class="field-label">१०. उपचार विधि वा रेजिमेन:</span>
+                <span class="field-value" id="treatment"></span>
+            </div>
+            <div class="field-row">
+                <span class="field-label">११. प्रयोग भएको औषधि:</span>
+                <span class="field-value" id="medicines"></span>
+            </div>
+            <div class="field-row" style="margin-top:4px;">
+                <span class="field-label">१२. अन्य परीक्षण गर्नुपर्न भए उल्लेख गर्ने:</span>
+                <span class="field-value" id="other-tests"></span>
+            </div>
+            <div class="field-row" style="margin-top:4px;">
+                <span class="field-label">१३. स्थानान्तरण/प्रेषण गरिनुको कारण:</span>
+                <span class="field-value" id="transfer-reason"></span>
+            </div>
+            <div class="field-row" style="margin-top:4px;">
+                <span class="field-label">१४. अन्य केही भए उल्लेख गर्ने:</span>
+                <span class="field-value" id="other-remarks"></span>
+            </div>
+        </div>
+
+        <!-- Right side: TB section -->
+        <div class="col-right">
+            <div class="col-right-title">क्षयरोगका बिरामीको लागि थप विवरण</div>
+
+            <div class="field-row" style="margin-bottom:4px;">
+                <span class="field-label">क्षयरोगको प्रकार:</span>
+                <span class="field-value" id="tb-type"></span>
+            </div>
+            <div class="field-row" style="margin-bottom:8px;">
+                <span class="field-label">दर्ता वर्गिकरण:</span>
+                <span class="field-value" id="tb-classification"></span>
+            </div>
+
+            <div style="text-align:center; font-weight:700; font-size:11px; border-top:1px solid #333; border-bottom:1px solid #333; padding:2px; margin-bottom:4px; background:#f0f0f0;">
+                खकार परिक्षण नतिजा
+            </div>
+
+            <table class="sputum-table">
+                <thead>
+                    <tr>
+                        <th>मिति</th>
+                        <th>ल्याब नं.</th>
+                        <th>परिणाम</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td id="sputum-date-1"></td>
+                        <td id="sputum-lab-1"></td>
+                        <td id="sputum-result-1"></td>
+                    </tr>
+                    <tr>
+                        <td id="sputum-date-2"></td>
+                        <td id="sputum-lab-2"></td>
+                        <td id="sputum-result-2"></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="field-row" style="margin-top:8px;">
+                <span class="field-label" style="font-size:10.5px;">अन्य परिक्षणको नतिजा</span>
+                <span class="field-value" id="other-test-result"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signature / referral body -->
+    <div class="signature-section">
+        <div class="refer-line">
+            श्री &nbsp;
+            <span style="display:inline-block; border-bottom:1px solid #333; min-width:400px; padding:0 4px;" id="refer-to"></span>
+        </div>
+        <div class="referral-body">
+            यस संस्थाम सेवा लिन आएका उपरोक्त विवरण भएका व्यक्तिलाई आवश्यक सेवाका लागि यहाँ पठाइएको छ।<br>
+            सम्पर्क गर्न आएपछि फिर्ति जानकारी पठाई दिन हुन अनुरोध छ।
+        </div>
+
+        <div class="sig-row">
+            <div class="sig-item">
+                <div class="sig-line" id="referrer-name-display"></div>
+                <div class="sig-label">प्रेषण / स्थानान्तरण गर्नेको नाम</div>
+            </div>
+            <div class="sig-item">
+                <div class="sig-line" id="referrer-post-display"></div>
+                <div class="sig-label">पद</div>
+            </div>
+            <div class="sig-item">
+                <div class="sig-line"></div>
+                <div class="sig-label">सही</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer note -->
+    <div class="footer-note">
+        <strong>नोट:</strong> सेवा लिन आउने बिरामीहरूसेवाग्राहीहरू तोकिएकसे सेवा लिन आकुल पर्ने गरी स्थानान्तरण प्रेषण गर्नु पर्दो यो
+        फाराम प्रयोग गर्नु पर्दछ।
+    </div>
+
+</div><!-- /#slip -->
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG — update these for your DHIS2 instance
+// ══════════════════════════════════════════
+var CONFIG = {
+    basePath: '',           // auto-detected
+    routeId: 'YOUR_ROUTE_ID_HERE',
+    programId: 'YOUR_PROGRAM_ID_HERE',
+    orgUnitId: 'YOUR_ORG_UNIT_ID_HERE',
+
+    // Program stage IDs — update to match your program
+    stages: {
+        registration:   'STAGE_REGISTRATION_ID',
+        vitals:         'STAGE_VITALS_ID',
+        treatment:      'STAGE_TREATMENT_ID',
+        tb:             'STAGE_TB_ID',
+    },
+
+    // Data element IDs — update to match your program
+    dataElements: {
+        // Registration / Patient
+        patientName:        'DE_PATIENT_NAME',
+        gender:             'DE_GENDER',
+        age:                'DE_AGE',
+        district:           'DE_DISTRICT',
+        municipality:       'DE_MUNICIPALITY',
+        ward:               'DE_WARD',
+        facilityName:       'DE_FACILITY_NAME',
+        facilityContact:    'DE_FACILITY_CONTACT',
+        servicesTaken:      'DE_SERVICES_TAKEN',
+        referTo:            'DE_REFER_TO',
+        referrerName:       'DE_REFERRER_NAME',
+        referrerPost:       'DE_REFERRER_POST',
+        transferReason:     'DE_TRANSFER_REASON',
+        otherRemarks:       'DE_OTHER_REMARKS',
+
+        // Vitals
+        bp:         'DE_BP',
+        pulse:      'DE_PULSE',
+        temp:       'DE_TEMP',
+        resp:       'DE_RESP',
+        weight:     'DE_WEIGHT',
+        height:     'DE_HEIGHT',
+        muac:       'DE_MUAC',
+        edema:      'DE_EDEMA',
+
+        // Treatment
+        treatment:      'DE_TREATMENT',
+        medicines:      'DE_MEDICINES',
+        otherTests:     'DE_OTHER_TESTS',
+
+        // TB
+        tbType:             'DE_TB_TYPE',
+        tbClassification:   'DE_TB_CLASSIFICATION',
+        sputumDate1:        'DE_SPUTUM_DATE_1',
+        sputumLab1:         'DE_SPUTUM_LAB_1',
+        sputumResult1:      'DE_SPUTUM_RESULT_1',
+        sputumDate2:        'DE_SPUTUM_DATE_2',
+        sputumLab2:         'DE_SPUTUM_LAB_2',
+        sputumResult2:      'DE_SPUTUM_RESULT_2',
+        otherTestResult:    'DE_OTHER_TEST_RESULT',
+    }
+};
+
+// ══════════════════════════════════════════
+// UTILITIES
+// ══════════════════════════════════════════
+function detectBasePath() {
+    var pathname = window.location.pathname;
+    var parts = pathname.split('/').filter(Boolean);
+    var base = parts.length > 0 ? '/' + parts[0] : '';
+    if (base === '/api') base = '';
+    return base;
+}
+
+function setStatus(msg, type) {
+    $('#status-bar').removeClass('info success error').addClass(type).text(msg);
+    if (type === 'success') {
+        setTimeout(function() { $('#status-bar').hide(); }, 5000);
+    }
+}
+
+function todayNepali() {
+    // Returns today as a display string (BS conversion would need a lib)
+    // For now returns AD date; replace with BS conversion if available
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function getVal(events, stageId, dataElementId) {
+    if (!events || !events[stageId]) return '';
+    var event = events[stageId];
+    var dv = (event.dataValues || []).find(function(d) {
+        return d.dataElement === dataElementId;
+    });
+    return dv ? dv.value : '';
+}
+
+// ══════════════════════════════════════════
+// POPULATE SLIP FROM DATA
+// ══════════════════════════════════════════
+function populateSlip(eventsByStage, enrollment) {
+    var de = CONFIG.dataElements;
+    var st = CONFIG.stages;
+
+    $('#slip-date').text(todayNepali());
+
+    // Facility
+    $('#facility-name').text(getVal(eventsByStage, st.registration, de.facilityName) || (enrollment && enrollment.orgUnitName) || '');
+    $('#facility-contact').text(getVal(eventsByStage, st.registration, de.facilityContact));
+
+    // Patient
+    var name = enrollment ? (enrollment.attributes || []).find(function(a){ return a.displayName === 'First name'; }) : null;
+    $('#patient-name').text(getVal(eventsByStage, st.registration, de.patientName) || (name ? name.value : ''));
+    $('#patient-gender').text(getVal(eventsByStage, st.registration, de.gender));
+    $('#patient-age').text(getVal(eventsByStage, st.registration, de.age));
+    $('#patient-district').text(getVal(eventsByStage, st.registration, de.district));
+    $('#patient-municipality').text(getVal(eventsByStage, st.registration, de.municipality));
+    $('#patient-ward').text(getVal(eventsByStage, st.registration, de.ward));
+
+    // Services & contact date
+    $('#services-taken').text(getVal(eventsByStage, st.registration, de.servicesTaken));
+
+    // Vitals
+    $('#v-bp').text(getVal(eventsByStage, st.vitals, de.bp));
+    $('#v-pulse').text(getVal(eventsByStage, st.vitals, de.pulse));
+    $('#v-temp').text(getVal(eventsByStage, st.vitals, de.temp));
+    $('#v-resp').text(getVal(eventsByStage, st.vitals, de.resp));
+    $('#v-weight').text(getVal(eventsByStage, st.vitals, de.weight));
+    $('#v-height').text(getVal(eventsByStage, st.vitals, de.height));
+    $('#v-muac').text(getVal(eventsByStage, st.vitals, de.muac));
+    $('#v-edema').text(getVal(eventsByStage, st.vitals, de.edema));
+
+    // Treatment
+    $('#treatment').text(getVal(eventsByStage, st.treatment, de.treatment));
+    $('#medicines').text(getVal(eventsByStage, st.treatment, de.medicines));
+    $('#other-tests').text(getVal(eventsByStage, st.treatment, de.otherTests));
+    $('#transfer-reason').text(getVal(eventsByStage, st.treatment, de.transferReason));
+    $('#other-remarks').text(getVal(eventsByStage, st.treatment, de.otherRemarks));
+
+    // TB
+    $('#tb-type').text(getVal(eventsByStage, st.tb, de.tbType));
+    $('#tb-classification').text(getVal(eventsByStage, st.tb, de.tbClassification));
+    $('#sputum-date-1').text(getVal(eventsByStage, st.tb, de.sputumDate1));
+    $('#sputum-lab-1').text(getVal(eventsByStage, st.tb, de.sputumLab1));
+    $('#sputum-result-1').text(getVal(eventsByStage, st.tb, de.sputumResult1));
+    $('#sputum-date-2').text(getVal(eventsByStage, st.tb, de.sputumDate2));
+    $('#sputum-lab-2').text(getVal(eventsByStage, st.tb, de.sputumLab2));
+    $('#sputum-result-2').text(getVal(eventsByStage, st.tb, de.sputumResult2));
+    $('#other-test-result').text(getVal(eventsByStage, st.tb, de.otherTestResult));
+
+    // Referral
+    $('#refer-to').text(getVal(eventsByStage, st.treatment, de.referTo));
+    $('#referrer-name-display').text(getVal(eventsByStage, st.treatment, de.referrerName));
+    $('#referrer-post-display').text(getVal(eventsByStage, st.treatment, de.referrerPost));
+}
+
+// ══════════════════════════════════════════
+// LOAD FROM DHIS2
+// ══════════════════════════════════════════
+function loadFromDHIS2() {
+    setStatus('Loading today\'s events from DHIS2...', 'info');
+
+    var today = new Date().toISOString().split('T')[0];
+    var base = CONFIG.basePath;
+
+    // Fetch today's events for each stage
+    var stageIds = Object.values(CONFIG.stages);
+    var requests = stageIds.map(function(stageId) {
+        return $.ajax({
+            url: base + '/api/events.json',
+            data: {
+                programStage: stageId,
+                orgUnit: CONFIG.orgUnitId,
+                occurredAfter: today,
+                occurredBefore: today,
+                fields: 'event,programStage,enrollment,dataValues[dataElement,value]',
+                pageSize: 1,
+                order: 'occurredAt:desc'
+            },
+            headers: { 'Content-Type': 'application/json' }
+        });
+    });
+
+    $.when.apply($, requests).then(function() {
+        var results = requests.length === 1 ? [arguments] : Array.from(arguments);
+        var eventsByStage = {};
+
+        stageIds.forEach(function(stageId, i) {
+            var data = results[i][0];
+            if (data && data.events && data.events.length > 0) {
+                eventsByStage[stageId] = data.events[0];
+            }
+        });
+
+        // Also fetch enrollment for patient demographics
+        var enrollmentId = null;
+        Object.values(eventsByStage).forEach(function(ev) {
+            if (ev.enrollment) enrollmentId = ev.enrollment;
+        });
+
+        if (enrollmentId) {
+            $.ajax({
+                url: base + '/api/enrollments/' + enrollmentId + '.json',
+                headers: { 'Content-Type': 'application/json' }
+            }).done(function(enrollment) {
+                populateSlip(eventsByStage, enrollment);
+                setStatus('Data loaded successfully.', 'success');
+            }).fail(function() {
+                populateSlip(eventsByStage, null);
+                setStatus('Data loaded (enrollment details unavailable).', 'success');
+            });
+        } else {
+            populateSlip(eventsByStage, null);
+            setStatus('Data loaded from today\'s events.', 'success');
+        }
+
+    }).fail(function(err) {
+        setStatus('Failed to load events: ' + (err.responseJSON && err.responseJSON.message || 'Unknown error'), 'error');
+    });
+}
+
+// ══════════════════════════════════════════
+// BUILD FHIR TRANSACTION BUNDLE
+// ══════════════════════════════════════════
+function buildFHIRBundle() {
+    var patientName   = $('#patient-name').text();
+    var gender        = $('#patient-gender').text().toLowerCase();
+    var birthDate     = '';  // map from age if available
+    var facilityName  = $('#facility-name').text();
+    var referTo       = $('#refer-to').text();
+    var reason        = $('#transfer-reason').text();
+    var bp            = $('#v-bp').text();
+    var pulse         = $('#v-pulse').text();
+    var temp          = $('#v-temp').text();
+    var weight        = $('#v-weight').text();
+    var height        = $('#v-height').text();
+
+    var patientId     = 'patient-' + Date.now();
+    var encounterId   = 'encounter-' + Date.now();
+    var taskId        = 'task-' + Date.now();
+    var now           = new Date().toISOString();
+
+    var observations  = [];
+
+    function makeObservation(code, display, value, unit, system) {
+        if (!value) return null;
+        return {
+            fullUrl: 'urn:uuid:obs-' + code + '-' + Date.now(),
+            request: { method: 'POST', url: 'Observation' },
+            resource: {
+                resourceType: 'Observation',
+                status: 'final',
+                code: {
+                    coding: [{ system: 'http://loinc.org', code: code, display: display }]
+                },
+                subject: { reference: 'urn:uuid:' + patientId },
+                encounter: { reference: 'urn:uuid:' + encounterId },
+                effectiveDateTime: now,
+                valueQuantity: { value: parseFloat(value) || value, unit: unit, system: system || 'http://unitsofmeasure.org', code: unit }
+            }
+        };
+    }
+
+    var bpParts = bp.split('/');
+    if (bpParts.length === 2) {
+        observations.push({
+            fullUrl: 'urn:uuid:obs-bp-' + Date.now(),
+            request: { method: 'POST', url: 'Observation' },
+            resource: {
+                resourceType: 'Observation',
+                status: 'final',
+                code: { coding: [{ system: 'http://loinc.org', code: '55284-4', display: 'Blood pressure' }] },
+                subject: { reference: 'urn:uuid:' + patientId },
+                encounter: { reference: 'urn:uuid:' + encounterId },
+                effectiveDateTime: now,
+                component: [
+                    { code: { coding: [{ system: 'http://loinc.org', code: '8480-6', display: 'Systolic' }] },
+                      valueQuantity: { value: parseFloat(bpParts[0]), unit: 'mmHg' } },
+                    { code: { coding: [{ system: 'http://loinc.org', code: '8462-4', display: 'Diastolic' }] },
+                      valueQuantity: { value: parseFloat(bpParts[1]), unit: 'mmHg' } }
+                ]
+            }
+        });
+    }
+
+    var obs = [
+        makeObservation('8867-4', 'Pulse rate',         pulse,  '/min'),
+        makeObservation('8310-5', 'Body temperature',   temp,   'Cel'),
+        makeObservation('29463-7','Body weight',         weight, 'kg'),
+        makeObservation('8302-2', 'Body height',         height, 'cm'),
+    ];
+
+    obs.forEach(function(o) { if (o) observations.push(o); });
+
+    var bundle = {
+        resourceType: 'Bundle',
+        type: 'transaction',
+        timestamp: now,
+        entry: [
+            // Patient
+            {
+                fullUrl: 'urn:uuid:' + patientId,
+                request: { method: 'POST', url: 'Patient' },
+                resource: {
+                    resourceType: 'Patient',
+                    name: [{ text: patientName }],
+                    gender: gender || 'unknown'
+                }
+            },
+            // Referring Organization
+            {
+                fullUrl: 'urn:uuid:org-from',
+                request: { method: 'POST', url: 'Organization' },
+                resource: {
+                    resourceType: 'Organization',
+                    name: facilityName
+                }
+            },
+            // Encounter
+            {
+                fullUrl: 'urn:uuid:' + encounterId,
+                request: { method: 'POST', url: 'Encounter' },
+                resource: {
+                    resourceType: 'Encounter',
+                    status: 'finished',
+                    class: { system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode', code: 'AMB' },
+                    subject: { reference: 'urn:uuid:' + patientId },
+                    serviceProvider: { reference: 'urn:uuid:org-from' },
+                    period: { start: now, end: now }
+                }
+            },
+            // ServiceRequest (referral)
+            {
+                fullUrl: 'urn:uuid:' + taskId,
+                request: { method: 'POST', url: 'ServiceRequest' },
+                resource: {
+                    resourceType: 'ServiceRequest',
+                    status: 'active',
+                    intent: 'referral',
+                    subject: { reference: 'urn:uuid:' + patientId },
+                    encounter: { reference: 'urn:uuid:' + encounterId },
+                    requester: { reference: 'urn:uuid:org-from' },
+                    locationReference: [{ display: referTo }],
+                    reasonCode: [{ text: reason }],
+                    authoredOn: now
+                }
+            }
+        ].concat(observations)
+    };
+
+    return bundle;
+}
+
+// ══════════════════════════════════════════
+// SEND TO FHIR VIA DHIS2 ROUTES
+// ══════════════════════════════════════════
+function sendToFHIR() {
+    setStatus('Preparing FHIR bundle...', 'info');
+
+    var bundle = buildFHIRBundle();
+    var base   = CONFIG.basePath;
+    var url    = base + '/api/routes/' + CONFIG.routeId + '/run';
+
+    setStatus('Sending to FHIR server via DHIS2 Routes...', 'info');
+
+    $.ajax({
+        url:         url,
+        method:      'POST',
+        contentType: 'application/fhir+json',
+        data:        JSON.stringify(bundle),
+        success: function(response) {
+            console.log('FHIR Response:', response);
+            setStatus('Successfully sent to FHIR server.', 'success');
+        },
+        error: function(xhr) {
+            var msg = xhr.responseJSON && xhr.responseJSON.message
+                      ? xhr.responseJSON.message
+                      : xhr.statusText;
+            setStatus('FHIR submission failed: ' + msg, 'error');
+            console.error('FHIR error:', xhr.responseText);
+        }
+    });
+}
+
+// ══════════════════════════════════════════
+// BUTTON HANDLERS
+// ══════════════════════════════════════════
+$(document).ready(function() {
+
+    CONFIG.basePath = detectBasePath();
+
+    $('#btn-load').on('click', function() {
+        loadFromDHIS2();
+    });
+
+    $('#btn-fhir').on('click', function() {
+        sendToFHIR();
+    });
+
+    $('#btn-print').on('click', function() {
+        window.print();
+    });
+
+    $('#btn-clear').on('click', function() {
+        $('#slip [id]').not('#slip-date').each(function() {
+            $(this).text('');
+        });
+        $('#slip-date').text(todayNepali());
+        $('#status-bar').hide();
+    });
+
+    // Set today's date on load
+    $('#slip-date').text(todayNepali());
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Patient Card Configuration Guide</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      margin: 20px;
+      color: #333;
+    }
+    h1, h2, h3 {
+      color: #1f4e79;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+    table, th, td {
+      border: 1px solid #ccc;
+    }
+    th, td {
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #f2f2f2;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 10px;
+      overflow-x: auto;
+      border: 1px solid #ddd;
+    }
+    code {
+      font-family: Consolas, monospace;
+    }
+    hr {
+      margin: 30px 0;
+    }
+    ul {
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Patient Card Configuration Guide</h1>
+
+  <p>This guide explains how to configure patient cards in the datastore without needing to understand the rendering code.</p>
+
+  <p>A card is made up of one or more sections. Each section can be either:</p>
+
+  <ul>
+    <li><code>single</code></li>
+    <li><code>repeatable</code></li>
+  </ul>
+
+  <hr>
+
+  <h2>1. Card Structure</h2>
+
+  <pre><code>{
+  "id": "opdSummary",
+  "name": "OPD Summary",
+  "accessAt": [
+    "everywhere",
+    "enrollment-dashboard"
+  ],
+  "sections": [],
+  "optionSets": {}
+}</code></pre>
+
+  <h2>2. Card Fields</h2>
+
+  <table>
+    <tr><th>Field</th><th>Required</th><th>Description</th></tr>
+    <tr><td><code>id</code></td><td>Yes</td><td>Unique card identifier</td></tr>
+    <tr><td><code>name</code></td><td>Yes</td><td>Card name shown in the application</td></tr>
+    <tr><td><code>accessAt</code></td><td>Yes</td><td>Where the card should be available</td></tr>
+    <tr><td><code>sections</code></td><td>Yes</td><td>List of card sections</td></tr>
+    <tr><td><code>optionSets</code></td><td>No</td><td>Mapping between attribute/data element IDs and option set IDs</td></tr>
+    <tr><td><code>css</code></td><td>No</td><td>Custom CSS for the whole card</td></tr>
+    <tr><td><code>print</code></td><td>No</td><td>Print settings such as orientation and paper size</td></tr>
+  </table>
+
+  <h2>3. Section Types</h2>
+
+  <p>There are only two supported section types:</p>
+  <ol>
+    <li><code>single</code></li>
+    <li><code>repeatable</code></li>
+  </ol>
+
+  <h2>4. Single Section</h2>
+
+  <p>A <code>single</code> section is rendered only once.</p>
+
+  <ul>
+    <li>Tracked entity attributes</li>
+    <li>Enrollment information</li>
+    <li>Event information</li>
+    <li>Data element values</li>
+    <li>Static HTML</li>
+  </ul>
+
+  <pre><code>{
+  "id": "1",
+  "type": "single",
+  "title": "Patient Details",
+  "htmlBody": "&lt;table&gt;&lt;tr&gt;&lt;td&gt;Name&lt;/td&gt;&lt;td&gt;{attribute:yBYTz1M15tf.value} {attribute:MqBkcXtzszn.value}&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;"
+}</code></pre>
+
+  <h2>5. Repeatable Section</h2>
+
+  <p>A <code>repeatable</code> section is rendered multiple times, once for each matching event.</p>
+
+  <pre><code>{
+  "id": "2",
+  "type": "repeatable",
+  "title": "Clinical Summary",
+  "programStage": "bqd9yievDDw",
+  "htmlHeader": "&lt;table&gt;&lt;tr&gt;&lt;th&gt;Date&lt;/th&gt;&lt;th&gt;Complaint&lt;/th&gt;&lt;/tr&gt;",
+  "htmlBody": "&lt;tr&gt;&lt;td&gt;{event:eventDate}&lt;/td&gt;&lt;td&gt;{dataElement:Ywk0nodmiOh.value}&lt;/td&gt;&lt;/tr&gt;",
+  "htmlFooter": "&lt;/table&gt;"
+}</code></pre>
+
+  <h2>6. Placeholder Format</h2>
+
+  <pre><code>{type:id.property}</code></pre>
+
+  <p>Where:</p>
+  <ul>
+    <li><code>type</code> can be <code>attribute</code>, <code>dataElement</code>, or <code>event</code></li>
+    <li><code>id</code> is the attribute ID or data element ID</li>
+    <li><code>property</code> is the field to display</li>
+  </ul>
+
+  <h2>7. Attribute Placeholders</h2>
+
+  <pre><code>{attribute:ATTRIBUTE_ID.property}</code></pre>
+
+  <table>
+    <tr><th>Property</th><th>Description</th></tr>
+    <tr><td><code>value</code></td><td>Attribute value</td></tr>
+    <tr><td><code>displayName</code></td><td>Attribute name</td></tr>
+    <tr><td><code>optionLabel</code></td><td>Label of selected option set value</td></tr>
+    <tr><td><code>createdAt</code></td><td>Date attribute value was created</td></tr>
+    <tr><td><code>updatedAt</code></td><td>Date attribute value was last updated</td></tr>
+  </table>
+
+  <h2>8. Data Element Placeholders</h2>
+
+  <pre><code>{dataElement:DATA_ELEMENT_ID.property}</code></pre>
+
+  <table>
+    <tr><th>Property</th><th>Description</th></tr>
+    <tr><td><code>value</code></td><td>Data value</td></tr>
+    <tr><td><code>optionLabel</code></td><td>Label of selected option set value</td></tr>
+    <tr><td><code>storedBy</code></td><td>User who entered the value</td></tr>
+    <tr><td><code>createdAt</code></td><td>Date value was created</td></tr>
+    <tr><td><code>updatedAt</code></td><td>Date value was updated</td></tr>
+    <tr><td><code>providedElsewhere</code></td><td>Whether value was provided elsewhere</td></tr>
+  </table>
+
+  <h2>9. Event Placeholders</h2>
+
+  <pre><code>{event:property}</code></pre>
+
+  <table>
+    <tr><th>Property</th><th>Description</th></tr>
+    <tr><td><code>eventDate</code></td><td>Event date</td></tr>
+    <tr><td><code>dueDate</code></td><td>Due date</td></tr>
+    <tr><td><code>status</code></td><td>Event status</td></tr>
+    <tr><td><code>completedDate</code></td><td>Completion date</td></tr>
+    <tr><td><code>createdAt</code></td><td>Event creation date</td></tr>
+    <tr><td><code>updatedAt</code></td><td>Event last update date</td></tr>
+    <tr><td><code>orgUnit</code></td><td>Organization unit name</td></tr>
+    <tr><td><code>storedBy</code></td><td>User who created the event</td></tr>
+    <tr><td><code>eventId</code></td><td>Event UID</td></tr>
+  </table>
+
+  <h2>10. Best Practices</h2>
+
+  <ul>
+    <li>Use <code>single</code> for patient information, headers, or summary sections</li>
+    <li>Use <code>repeatable</code> for visit history, lab results, or immunization records</li>
+    <li>Keep HTML simple and readable</li>
+    <li>Use <code>optionLabel</code> instead of raw coded values whenever possible</li>
+    <li>Use <code>sortBy</code> and <code>limit</code> for repeatable sections to avoid very long printouts</li>
+    <li>Use card-level CSS instead of repeating inline styles</li>
+    <li>Test cards with real data before production use</li>
+  </ul>
+</body>
+</html>

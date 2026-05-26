@@ -1,0 +1,11 @@
+{
+	"version":"1.0.0",
+	"name":"Patient Cards",
+	"appType":"APP",
+	"icons":{"48":"dhis2-app-icon.png"},
+	"activities":{
+		"dhis":{"href":"https://hmis.hispnp.org"}
+	},
+	"plugin_launch_path":"plugin.html",
+	"short_name":"Patient Cards"
+}

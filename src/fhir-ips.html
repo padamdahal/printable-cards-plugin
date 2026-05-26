@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DHIS2 Enrollment to IPS FHIR</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #f4f6f9;
+      color: #333;
+    }
+
+    .container {
+      max-width: 1300px;
+      margin: auto;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+
+    h1, h2, h3, h4 {
+      margin-top: 0;
+      color: #1f2937;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 15px;
+    }
+
+    .field {
+      background: #f8fafc;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+
+    .label {
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+
+    .value {
+      font-size: 15px;
+      font-weight: bold;
+      word-break: break-word;
+    }
+
+    .event-card {
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 15px;
+      margin-top: 15px;
+      background: #fafafa;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: bold;
+      background: #dbeafe;
+      color: #1d4ed8;
+      margin-bottom: 10px;
+    }
+
+    pre {
+      background: #111827;
+      color: #e5e7eb;
+      padding: 15px;
+      border-radius: 10px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 13px;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+
+      .card {
+        padding: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="output"></div>
+  </div>
+
+  <script>
+	const queryString = window.location.search;
+	const params = new URLSearchParams(queryString);
+
+	const teiId = params.get('teiId');
+	const enrollmentId = params.get('enrollmentId');
+	const programId = params.get('programId');
+	const orgUnitId = params.get('orgUnitId');
+	const cardId = params.get("cardId");
+	
+	window.onload = function() {
+		loadData();
+	};
+	
+	async function fetchJSON(url) {
+		const res = await fetch(url);
+		if (!res.ok) throw new Error('DHIS2 API fetch failed');
+		return res.json();
+	}
+	
+	async function loadData(){
+		const url = "../../../api/tracker/enrollments/"+enrollmentId+"?fields=*";
+		const enrollmentResponse = await fetchJSON(url);
+		const patientAttributes = convertTEAs(enrollmentResponse.attributes);
+		const fhirBundle = convertEnrollmentToIPS(enrollmentResponse, patientAttributes);
+		document.getElementById("ipsjson").innerHtml = fhirBundle;
+		renderEnrollment(enrollmentResponse, patientAttributes, fhirBundle);
+	}
+	
+	function convertTEAs(attributes) {
+      const patientAttributes = {};
+
+      attributes.forEach(attr => {
+        const code = attr.code || attr.displayName;
+
+        switch (code) {
+          case "FULL_NAME":
+          case "GEN - Full Name":
+            patientAttributes.fullName = attr.value;
+            break;
+
+          case "GENDER":
+          case "GEN - Gender":
+            patientAttributes.gender = attr.value?.toLowerCase();
+            break;
+
+          case "BIRTH_DATE":
+          case "GEN - Birth Date":
+            patientAttributes.birthDate = attr.value;
+            break;
+
+          case "COUNTRY":
+          case "GEN - Country":
+            patientAttributes.country = attr.value;
+            break;
+        }
+      });
+
+      return patientAttributes;
+    }
+	
+    function convertEnrollmentToIPS(enrollment, patientAttributes = {}) {
+      const patientId = enrollment.trackedEntity;
+      const encounterId = enrollment.enrollment;
+      const compositionId = `composition-${encounterId}`;
+
+      const patientResource = {
+        resourceType: "Patient",
+        id: patientId,
+        identifier: [
+          {
+            system: "https://dhis2.org/trackedEntity",
+            value: patientId
+          }
+        ],
+        name: [
+          {
+            text: patientAttributes.fullName || "Unknown Patient"
+          }
+        ],
+        gender: patientAttributes.gender || "unknown",
+        birthDate: patientAttributes.birthDate || undefined
+      };
+
+      const encounterResource = {
+        resourceType: "Encounter",
+        id: encounterId,
+        status: enrollment.status === "ACTIVE" ? "in-progress" : "finished",
+        subject: {
+          reference: `Patient/${patientId}`
+        },
+        period: {
+          start: enrollment.enrolledAt,
+          end: enrollment.completedAt || undefined
+        }
+      };
+
+      const conditionResources = [];
+      const observationResources = [];
+      const immunizationResources = [];
+      const medicationResources = [];
+
+      enrollment.events.forEach(event => {
+        (event.dataValues || []).forEach(dataValue => {
+          const dataElement = dataValue.dataElement;
+          const value = dataValue.value;
+
+          switch (dataElement) {
+            case "HIV_STATUS":
+              conditionResources.push({
+                resourceType: "Condition",
+                id: `${event.event}-condition-hiv`,
+                clinicalStatus: {
+                  coding: [{
+                    system: "http://terminology.hl7.org/CodeSystem/condition-clinical",
+                    code: "active"
+                  }]
+                },
+                code: {
+                  coding: [{
+                    system: "http://snomed.info/sct",
+                    code: "86406008",
+                    display: "Human immunodeficiency virus infection"
+                  }]
+                },
+                subject: {
+                  reference: `Patient/${patientId}`
+                },
+                onsetDateTime: event.occurredAt
+              });
+              break;
+
+            case "WEIGHT":
+              observationResources.push({
+                resourceType: "Observation",
+                id: `${event.event}-weight`,
+                status: "final",
+                code: {
+                  coding: [{
+                    system: "http://loinc.org",
+                    code: "29463-7",
+                    display: "Body weight"
+                  }]
+                },
+                subject: {
+                  reference: `Patient/${patientId}`
+                },
+                encounter: {
+                  reference: `Encounter/${encounterId}`
+                },
+                effectiveDateTime: event.occurredAt,
+                valueQuantity: {
+                  value: parseFloat(value),
+                  unit: "kg"
+                }
+              });
+              break;
+
+            case "BP_SYSTOLIC":
+              observationResources.push({
+                resourceType: "Observation",
+                id: `${event.event}-bp-systolic`,
+                status: "final",
+                code: {
+                  coding: [{
+                    system: "http://loinc.org",
+                    code: "8480-6",
+                    display: "Systolic blood pressure"
+                  }]
+                },
+                subject: {
+                  reference: `Patient/${patientId}`
+                },
+                encounter: {
+                  reference: `Encounter/${encounterId}`
+                },
+                effectiveDateTime: event.occurredAt,
+                valueQuantity: {
+                  value: parseFloat(value),
+                  unit: "mmHg"
+                }
+              });
+              break;
+
+            case "COVID_VACCINE":
+              immunizationResources.push({
+                resourceType: "Immunization",
+                id: `${event.event}-covid-vaccine`,
+                status: "completed",
+                vaccineCode: {
+                  text: value
+                },
+                patient: {
+                  reference: `Patient/${patientId}`
+                },
+                occurrenceDateTime: event.occurredAt
+              });
+              break;
+
+            case "CURRENT_MEDICATION":
+              medicationResources.push({
+                resourceType: "MedicationStatement",
+                id: `${event.event}-medication`,
+                status: "active",
+                subject: {
+                  reference: `Patient/${patientId}`
+                },
+                medicationCodeableConcept: {
+                  text: value
+                },
+                effectiveDateTime: event.occurredAt
+              });
+              break;
+          }
+        });
+      });
+
+      const compositionResource = {
+        resourceType: "Composition",
+        id: compositionId,
+        status: "final",
+        type: {
+          coding: [{
+            system: "http://loinc.org",
+            code: "60591-5",
+            display: "Patient summary Document"
+          }]
+        },
+        subject: {
+          reference: `Patient/${patientId}`
+        },
+        date: new Date().toISOString(),
+        title: "International Patient Summary",
+        section: [
+          {
+            title: "Problems",
+            entry: conditionResources.map(r => ({
+              reference: `Condition/${r.id}`
+            }))
+          },
+          {
+            title: "Medications",
+            entry: medicationResources.map(r => ({
+              reference: `MedicationStatement/${r.id}`
+            }))
+          },
+          {
+            title: "Immunizations",
+            entry: immunizationResources.map(r => ({
+              reference: `Immunization/${r.id}`
+            }))
+          },
+          {
+            title: "Results and Vital Signs",
+            entry: observationResources.map(r => ({
+              reference: `Observation/${r.id}`
+            }))
+          }
+        ]
+      };
+
+      return {
+        resourceType: "Bundle",
+        type: "document",
+        entry: [
+          { resource: compositionResource },
+          { resource: patientResource },
+          { resource: encounterResource },
+          ...conditionResources.map(resource => ({ resource })),
+          ...medicationResources.map(resource => ({ resource })),
+          ...immunizationResources.map(resource => ({ resource })),
+          ...observationResources.map(resource => ({ resource }))
+        ]
+      };
+    }
+
+    
+
+    function renderEnrollment(enrollment, patient, fhirBundle) {
+      const output = document.getElementById('output');
+
+      output.innerHTML = `
+        <div class="card">
+          <h1>International Patient Summary</h1>
+          <div class="badge">IPS-Aligned FHIR Document</div>
+          <div class="grid">
+            <div class="field">
+              <div class="label">Patient Name</div>
+              <div class="value">${patient.fullName}</div>
+            </div>
+            <div class="field">
+              <div class="label">Gender</div>
+              <div class="value">${patient.gender}</div>
+            </div>
+            <div class="field">
+              <div class="label">Birth Date</div>
+              <div class="value">${patient.birthDate}</div>
+            </div>
+            <div class="field">
+              <div class="label">Tracked Entity ID</div>
+              <div class="value">${enrollment.trackedEntity}</div>
+            </div>
+            <div class="field">
+              <div class="label">Enrollment ID</div>
+              <div class="value">${enrollment.enrollment}</div>
+            </div>
+            <div class="field">
+              <div class="label">Program Status</div>
+              <div class="value">${enrollment.status}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>DHIS2 Events</h2>
+          ${enrollment.events.map(event => `
+            <div class="event-card">
+              <h3>${event.programStage}</h3>
+              <div class="grid">
+                <div class="field">
+                  <div class="label">Event ID</div>
+                  <div class="value">${event.event}</div>
+                </div>
+                <div class="field">
+                  <div class="label">Status</div>
+                  <div class="value">${event.status}</div>
+                </div>
+                <div class="field">
+                  <div class="label">Occurred At</div>
+                  <div class="value">${event.occurredAt}</div>
+                </div>
+              </div>
+
+              <h4>Data Values</h4>
+              <div class="grid">
+                ${event.dataValues.map(dv => `
+                  <div class="field">
+                    <div class="label">${dv.dataElement}</div>
+                    <div class="value">${dv.value}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="card">
+          <h2>FHIR IPS Bundle Output</h2>
+          <pre id="ipsjson">${JSON.stringify(fhirBundle, null, 2)}</pre>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
