@@ -22,9 +22,9 @@ async function loadDataInCard() {
 		const url = "../../../api/tracker/enrollments/"+enrollmentId+"?fields=*";
 		const enrollmentData = await fetchJSON(url);
 		
-		//const eventsUrl = "../../../../api/tracker/events?program="+programId+"&orgUnit="+orgUnitId+"&trackedEntity="+teiId+"&paging=false";
+		//const eventsUrl = "../../../../api/tracker/events?				program="+programId+"&orgUnit="+orgUnitId+"&trackedEntity="+teiId+"&paging=false";
 		// Split attributes and events
-        const events = enrollmentData.events;
+    const events = enrollmentData.events;
 		const attributes = enrollmentData.attributes;
 		
 		// Get User info
@@ -39,8 +39,9 @@ async function loadDataInCard() {
 		const parentElement = document.getElementById('card');
 		
 		console.log('Getting list of cards');
-		const cards = await fetchJSON('../../../api/dataStore/prints/config');
-		const cardToRender = cards.find(c => c.id == cardId);
+		//const cards = await fetchJSON('../../../api/dataStore/prints/config');
+		const cards = await fetchJSON('../../../api/dataStore/cardDesigner/'+cardId);
+		const cardToRender = cards; //.find(c => c.id == cardId);
 				
 		console.log('Preparing optionSet collection');
 		

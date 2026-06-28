@@ -17,17 +17,22 @@ const iframe = window.frameElement;
 
 window.addEventListener('load', function() {
 	resizeIframe();
-	fetch('../../../api/dataStore/prints/config')
+	//fetch('../../../api/dataStore/prints/config')
+	fetch('../../../api/dataStore/cardDesigner')
 	.then(response => response.json())
 	.then(data => {
 		data.forEach(card => {
 			let path = (card.path) ? card.path : 'card.html';
 			let a = document.createElement('a');
-			let link = document.createTextNode(card.name);
+			let link = document.createTextNode(card.split(/(?=[A-Z])/)
+					.map(word => word.charAt(0).toUpperCase() + word.slice(1))
+					.join(" "));
 			a.appendChild(link);
-			a.title = card.name;
+			a.title = card.split(/(?=[A-Z])/)
+				.map(word => word.charAt(0).toUpperCase() + word.slice(1))
+				.join(" ");
 			a.target = "_blank";
-			a.href = '../../../api/apps/Patient-Cards/'+path+'?cardId='+card.id+'&teiId='+teiId+'&enrollmentId='+enrollmentId+'&programId='+programId+'&orgUnitId='+orgUnitId;
+			a.href = '../../../api/apps/Patient-Cards/'+path+'?cardId='+card+'&teiId='+teiId+'&enrollmentId='+enrollmentId+'&programId='+programId+'&orgUnitId='+orgUnitId;
 			document.getElementById("card-list").appendChild(a);
 		});
 	}).catch(error => {
