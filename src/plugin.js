@@ -24,15 +24,11 @@ window.addEventListener('load', function() {
 		data.forEach(card => {
 			let path = (card.path) ? card.path : 'card.html';
 			let a = document.createElement('a');
-			let link = document.createTextNode(card.split(/(?=[A-Z])/)
-					.map(word => word.charAt(0).toUpperCase() + word.slice(1))
-					.join(" "));
+			let link = document.createTextNode(card);
 			a.appendChild(link);
-			a.title = card.split(/(?=[A-Z])/)
-				.map(word => word.charAt(0).toUpperCase() + word.slice(1))
-				.join(" ");
+			a.title = card;
 			a.target = "_blank";
-			a.href = '../../../api/apps/Patient-Cards/'+path+'?cardId='+card+'&teiId='+teiId+'&enrollmentId='+enrollmentId+'&programId='+programId+'&orgUnitId='+orgUnitId;
+			a.href = '../../../api/apps/Patient-Cards/'+path+'?cardId='+encodeURIComponent(card)+'&teiId='+teiId+'&enrollmentId='+enrollmentId+'&programId='+programId+'&orgUnitId='+orgUnitId;
 			document.getElementById("card-list").appendChild(a);
 		});
 	}).catch(error => {

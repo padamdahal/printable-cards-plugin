@@ -39,9 +39,8 @@ async function loadDataInCard() {
 		const parentElement = document.getElementById('card');
 		
 		console.log('Getting list of cards');
-		//const cards = await fetchJSON('../../../api/dataStore/prints/config');
 		const cards = await fetchJSON('../../../api/dataStore/cardDesigner/'+cardId);
-		const cardToRender = cards; //.find(c => c.id == cardId);
+		const cardToRender = cards;
 				
 		console.log('Preparing optionSet collection');
 		
@@ -63,10 +62,14 @@ async function loadDataInCard() {
 			
 			var cardHtmlString = "";
 			const regex = /\{.+?\}/g;
+			
 			cardSections.forEach(section => {
 				console.log("Processing card section.");
-				var htmlHeader = section.htmlHeader;
-				var htmlFooter = section.htmlFooter;
+				var roughHtmlHeader = section.htmlHeader
+				const htmlHeader = (roughHtmlHeader != undefined) ? roughHtmlHeader.replace(/<\/tbody>\s*<\/table>\s*$/, ''):'';
+								
+				var roughHtmlFooter = section.htmlFooter;
+				const htmlFooter = (roughHtmlFooter) ? roughHtmlFooter.replace(/^\s*<table[^>]*>\s*<tbody>/, ''):'';
 				
 				if(section.type == 'single'){
 					var htmlBody = section.htmlBody;
@@ -75,9 +78,8 @@ async function loadDataInCard() {
 					valuePlaceholders.forEach(placeholder => {
 						let key = placeholder.replace(/[{}]/g, '').split(".")[0];
 						let valueKey = placeholder.replace(/[{}]/g, '').split(".")[1];
-
 						let attr = attributes.find(a => a.attribute == key);
-						
+					
 						// Replace placeholders where it matches attributes
 						if(attr){
 							let value;
@@ -99,13 +101,13 @@ async function loadDataInCard() {
 							}
 							
 							if(isDate(value)){
-								console.log(isDate(value) + " here " + value);
+								console.log('Value is date: ' + value);
 								value = new Date(value).toISOString().split('T')[0];
 								value = AD2BS(value);
-								// Perform date conversion here
 							}
 							
-							if(value)
+							if(value && value != undefined)
+								console.log(placeholder + " => " + value);
 								htmlBody = htmlBody.replaceAll(placeholder, value);
 						}
 						
@@ -148,16 +150,11 @@ async function loadDataInCard() {
 											value = dataValue[valueKey];
 										}
 									}
-									
-									//else{
-									//	value = 'N/A';
-									//}
 								}
 								if(isDate(value)){
 									value = new Date(value).toISOString().split('T')[0];
 									console.log(AD2BS(value));
 									value = AD2BS(value);
-									// Perform date conversion here
 								}
 								if(value)
 									htmlBody = htmlBody.replaceAll(placeholder, value);
@@ -167,9 +164,7 @@ async function loadDataInCard() {
 						// Replace placeholders where it matches user info
 						if(Object.keys(me).length != 0){
 							value = me[key];
-							console.log(placeholder);
-							console.log(key);
-							console.log(value);
+							//console.log(placeholder); console.log(key); console.log(value);
 							if(value)
 								htmlBody = htmlBody.replaceAll(placeholder, value);
 						}
@@ -190,8 +185,10 @@ async function loadDataInCard() {
 						}else if(key === 'ou2'){
 							value = orgUnit.parent.parent.parent.parent[valueKey];
 						}
-						console.log(value);
-						htmlBody = htmlBody.replaceAll(placeholder, value);						
+						if(value && value != undefined){
+							console.log(placeholder + " => " + value);
+							htmlBody = htmlBody.replaceAll(placeholder, value);
+						}
 					});
 					
 					cardHtmlString += htmlHeader + htmlBody + htmlFooter;	
@@ -208,10 +205,15 @@ async function loadDataInCard() {
 					}
 					
 					filteredEvents.forEach(event => {
-						var htmlBody = section.htmlBody;
+						const completeHtmlBody = section.htmlBody;
+
+						// Strip off the table tags from the htmlBody
+						var htmlBody = completeHtmlBody.replace(/^\s*<table[^>]*>\s*<tbody>/, '').replace(/<\/tbody>\s*<\/table>\s*$/, '');
+						console.log(htmlBody);
 						
 						const regex = /\{.+?\}/g;
 						const valuePlaceholders = htmlBody.match(regex);
+						
 						valuePlaceholders.forEach(placeholder => {
 							console.log(placeholder);
 							let key = placeholder.replace(/[{}]/g, '').split(".")[0];
