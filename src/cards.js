@@ -96,8 +96,11 @@ async function loadDataInCard() {
 								if (!valueKey){
 									valueKey = 'value';
 								}
-								
-								value = attr[valueKey];	
+								if(valueKey == 'occurredAt' || valueKey == 'enrolledAt'){
+									value = enrollmentData[valueKey];
+								}else{
+									value = attr[valueKey];	
+								}
 							}
 							
 							if(isDate(value)){
@@ -147,7 +150,11 @@ async function loadDataInCard() {
 											if (!valueKey){
 												valueKey = 'value';
 											}
-											value = dataValue[valueKey];
+											if(valueKey == 'occurredAt' || valueKey == 'enrolledAt'){
+												value = event[valueKey];
+											}else{
+												value = dataValue[valueKey];	
+											}
 										}
 									}
 								}
