@@ -3,7 +3,7 @@
 # Define the target folder and the output zip name
 FOLDER="src"
 BUILD_FOLDER="./build"
-OUTPUT="$BUILD_FOLDER/app.zip"
+OUTPUT="$BUILD_FOLDER/patient-cards.zip"
 
 # Check if the build folder exists
 if [ -d "./build" ]; then
