@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Patient Care Record</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#F5F7F6;
+    --surface:#FFFFFF;
+    --surface-alt:#EEF3F2;
+    --ink:#16302E;
+    --ink-soft:#52716E;
+    --ink-faint:#8AA5A2;
+    --primary:#1F6F6B;
+    --primary-dark:#123C3C;
+    --amber:#D98C3D;
+    --rose:#B54B45;
+    --sky:#3F7FA6;
+    --plum:#7A5980;
+    --moss:#5B7A4F;
+    --line:#DCE6E4;
+    --line-strong:#C3D2CF;
+    --shadow: 0 1px 2px rgba(18,60,60,0.04), 0 8px 24px -12px rgba(18,60,60,0.18);
+    --radius: 14px;
+    --font-display:'Fraunces', Georgia, serif;
+    --font-body:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono:'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-body);
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--primary);}
+  ::selection{background:rgba(31,111,107,0.18);}
+
+  /* ---------- scaffolding states ---------- */
+  #boot{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:18px;
+    color:var(--ink-soft);
+  }
+  .boot-mark{
+    width:46px;height:46px;border-radius:50%;
+    border:3px solid var(--line-strong);
+    border-top-color:var(--primary);
+    animation:spin 0.9s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .boot-text{font-family:var(--font-mono);font-size:12.5px;letter-spacing:.04em;}
+
+  #fatal{
+    max-width:560px;margin:80px auto;padding:32px 36px;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  #fatal h2{font-family:var(--font-display);color:var(--rose);margin:0 0 8px;font-size:20px;}
+  #fatal p{color:var(--ink-soft);margin:6px 0;}
+  #fatal code{background:var(--surface-alt);padding:2px 6px;border-radius:4px;font-family:var(--font-mono);font-size:12.5px;}
+
+  /* ---------- layout ---------- */
+  #app{display:none;}
+  .wrap{max-width:1360px;margin:0 auto;padding:22px 28px 80px;}
+
+  /* banner */
+  .banner{
+    background:linear-gradient(135deg, var(--primary-dark), var(--primary) 65%);
+    border-radius: var(--radius);
+    color:#EAF3F2;
+    padding:26px 30px;
+    display:flex;
+    gap:24px;
+    align-items:center;
+    box-shadow: var(--shadow);
+    position:relative;
+    overflow:hidden;
+  }
+  .banner::after{
+    content:"";
+    position:absolute; right:-40px; top:-60px;
+    width:220px;height:220px;border-radius:50%;
+    background:radial-gradient(circle, rgba(255,255,255,0.10), transparent 70%);
+  }
+  .avatar{
+    width:74px;height:74px;border-radius:50%;
+    background:rgba(255,255,255,0.14);
+    border:1.5px solid rgba(255,255,255,0.35);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-display);font-size:26px;font-weight:600;
+    flex-shrink:0;
+    z-index:1;
+  }
+  .banner-main{flex:1;min-width:0;z-index:1;}
+  .banner-name{
+    font-family:var(--font-display);
+    font-size:27px;font-weight:600;
+    display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+  }
+  .banner-name .sub{font-family:var(--font-body);font-size:14px;font-weight:500;color:#CFE6E3;}
+  .banner-meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:9px;font-size:13px;color:#D7EAE8;}
+  .banner-meta span b{color:#fff;font-weight:600;}
+  .banner-id{
+    font-family:var(--font-mono);font-size:11.5px;color:#BFE0DC;
+    margin-top:10px; display:flex; align-items:center; gap:8px;
+  }
+  .banner-id button{
+    font-family:var(--font-mono);font-size:11px;background:rgba(255,255,255,0.12);
+    border:1px solid rgba(255,255,255,0.3);color:#EAF3F2;border-radius:6px;
+    padding:2px 8px;cursor:pointer;
+  }
+  .banner-id button:hover{background:rgba(255,255,255,0.22);}
+  .banner-flags{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;z-index:1;}
+  .flag{
+    font-size:11.5px;font-weight:600;letter-spacing:.02em;
+    padding:4px 10px;border-radius:20px;
+    background:rgba(217,140,61,0.22);color:#FFE1BA;border:1px solid rgba(217,140,61,0.5);
+  }
+  .flag.critical{background:rgba(181,75,69,0.28);color:#FFD3CF;border-color:rgba(181,75,69,0.6);}
+  .banner-actions{z-index:1;display:flex;flex-direction:column;gap:8px;align-items:flex-end;}
+  .btn{
+    font-family:var(--font-body);font-weight:600;font-size:12.5px;
+    border-radius:9px;padding:9px 15px;border:1px solid transparent;cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn-ghost{background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.35);color:#fff;}
+  .btn-ghost:hover{background:rgba(255,255,255,0.22);}
+
+  /* main grid */
+  .grid{
+    display:grid;
+    grid-template-columns: 250px minmax(0,1fr) 300px;
+    gap:20px;
+    margin-top:20px;
+    align-items:start;
+  }
+  @media (max-width: 1180px){
+    .grid{grid-template-columns: 220px minmax(0,1fr);}
+    .rail-right{grid-column: 1 / -1;}
+  }
+  @media (max-width: 800px){
+    .grid{grid-template-columns: 1fr;}
+    .rail-right{grid-column:auto;}
+  }
+
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius: var(--radius);
+    padding:18px 18px 20px;
+    box-shadow: var(--shadow);
+  }
+  .panel + .panel{margin-top:16px;}
+  .panel h3{
+    font-family:var(--font-body);font-size:11.5px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);
+    margin:0 0 14px;
+  }
+
+  /* left rail: programs */
+  .prog-item{
+    display:flex;align-items:center;gap:10px;
+    padding:9px 10px;border-radius:9px;cursor:pointer;
+    border:1px solid transparent;
+    margin-bottom:4px;
+  }
+  .prog-item:hover{background:var(--surface-alt);}
+  .prog-item.active{background:var(--surface-alt);border-color:var(--line-strong);}
+  .prog-item.dimmed{opacity:.4;}
+  .prog-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .prog-name{font-size:12.8px;font-weight:600;color:var(--ink);flex:1;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .prog-status{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:5px;}
+  .st-ACTIVE{background:#DDF0E4;color:#2C7A4B;}
+  .st-COMPLETED{background:#E4E9EC;color:#556270;}
+  .st-CANCELLED{background:#F5E1DF;color:#A6413A;}
+
+  .stat-row{display:flex;justify-content:space-between;padding:6px 0;font-size:12.6px;border-bottom:1px dashed var(--line);}
+  .stat-row:last-child{border-bottom:none;}
+  .stat-row b{font-family:var(--font-mono);color:var(--primary-dark);font-weight:600;}
+
+  .search-box{
+    width:100%;padding:8px 11px;border:1px solid var(--line-strong);border-radius:8px;
+    font-family:var(--font-body);font-size:12.8px;margin-bottom:12px;background:var(--surface-alt);
+  }
+  .search-box:focus{outline:2px solid var(--primary);outline-offset:0;background:var(--surface);}
+
+  /* ---------- the spine (timeline) ---------- */
+  .spine-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  .spine-head h2{font-family:var(--font-display);font-size:19px;margin:0;font-weight:600;}
+  .spine-count{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-faint);}
+
+  .timeline{position:relative;margin-top:14px;padding-left:6px;}
+  .month-divider{
+    display:flex;align-items:center;gap:10px;
+    font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.05em;
+    color:var(--ink-faint);text-transform:uppercase;
+    margin:22px 0 10px 0;
+  }
+  .month-divider::after{content:"";flex:1;height:1px;background:repeating-linear-gradient(90deg, var(--line-strong) 0 4px, transparent 4px 8px);}
+  .month-divider:first-child{margin-top:4px;}
+
+  .tl-row{position:relative;display:flex;gap:16px;padding-left:4px;}
+  .tl-rail{
+    width:16px;flex-shrink:0;position:relative;display:flex;justify-content:center;
+  }
+  .tl-rail::before{
+    content:"";position:absolute;top:0;bottom:-8px;left:50%;width:2px;
+    transform:translateX(-50%);
+    background:repeating-linear-gradient(180deg, var(--line-strong) 0 3px, transparent 3px 6px);
+  }
+  .tl-row:last-child .tl-rail::before{display:none;}
+  .tl-node{
+    width:12px;height:12px;border-radius:50%;margin-top:4px;
+    border:2.5px solid var(--surface);box-shadow:0 0 0 1.5px var(--line-strong);
+    position:relative;z-index:1;flex-shrink:0;
+  }
+  .tl-node.future{background:var(--surface) !important;box-shadow:0 0 0 1.5px var(--ink-faint);border-style:dashed;}
+
+  .tl-card{
+    flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);
+    border-radius:12px;padding:13px 15px;margin-bottom:14px;cursor:pointer;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .tl-card:hover{border-color:var(--line-strong);box-shadow:0 4px 14px -8px rgba(18,60,60,0.28);}
+  .tl-card.open{border-color:var(--primary);}
+  .tl-card-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .tl-stage{font-weight:700;font-size:14px;color:var(--ink);}
+  .tl-prog-tag{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:20px;color:#fff;letter-spacing:.02em;}
+  .tl-date{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-faint);margin-left:auto;white-space:nowrap;}
+  .tl-sub{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .tl-status{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:5px;margin-left:8px;}
+
+  .tl-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .pill{
+    background:var(--surface-alt);border:1px solid var(--line);border-radius:7px;
+    padding:4px 9px;font-size:11.6px;display:flex;gap:5px;align-items:baseline;
+    max-width:100%;
+  }
+  .pill .k{color:var(--ink-faint);font-weight:600;}
+  .pill .v{color:var(--ink);font-weight:600;font-family:var(--font-mono);font-size:11.4px;}
+  .pill.abn{background:#F7E4E2;border-color:#EBC3BE;}
+  .pill.abn .v{color:var(--rose);}
+
+  .tl-detail{display:none;margin-top:12px;border-top:1px solid var(--line);padding-top:10px;}
+  .tl-card.open .tl-detail{display:block;}
+  .detail-table{width:100%;border-collapse:collapse;}
+  .detail-table tr td{padding:5px 0;font-size:12.6px;border-bottom:1px dashed var(--line);vertical-align:top;}
+  .detail-table tr:last-child td{border-bottom:none;}
+  .detail-table td:first-child{color:var(--ink-soft);width:46%;padding-right:10px;}
+  .detail-table td:last-child{font-weight:600;color:var(--ink);font-family:var(--font-mono);font-size:12.2px;}
+
+  .empty-state{
+    text-align:center;padding:50px 20px;color:var(--ink-faint);
+  }
+  .empty-state .glyph{font-size:30px;margin-bottom:10px;}
+
+  /* visit card (master register + linked stage events for one day) */
+  .visit-head-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .visit-title{font-weight:700;font-size:14px;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .visit-badge{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:5px;background:var(--surface-alt);color:var(--ink-soft);}
+  .visit-count{font-size:11.5px;color:var(--ink-faint);font-weight:600;}
+  .visit-toggle-hint{font-size:11px;color:var(--primary);font-weight:600;margin-left:auto;white-space:nowrap;}
+
+  .stage-list{margin-top:12px;display:none;border-top:1px solid var(--line);padding-top:10px;}
+  .tl-card.open .stage-list{display:block;}
+  .stage-block{border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-bottom:8px;background:var(--surface-alt);}
+  .stage-block:last-child{margin-bottom:0;}
+  .stage-block-head{display:flex;align-items:center;gap:8px;cursor:pointer;}
+  .stage-block-head .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .stage-block-head .name{font-weight:700;font-size:12.8px;flex:1;}
+  .stage-block-head .status{font-size:9px;font-weight:700;text-transform:uppercase;padding:1px 6px;border-radius:5px;}
+  .stage-block-head .caret{color:var(--ink-faint);font-size:11px;}
+  .stage-block .tl-pills{margin-top:8px;}
+  .stage-detail{display:none;border-top:1px dashed var(--line-strong);margin-top:8px;padding-top:8px;}
+  .stage-block.open .stage-detail{display:block;}
+
+  /* by-stage summary panel */
+  .stage-panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
+  .topn-toggle{display:flex;gap:4px;background:var(--surface-alt);border-radius:8px;padding:3px;}
+  .topn-toggle button{
+    font-family:var(--font-body);font-size:10.8px;font-weight:700;border:none;background:transparent;
+    color:var(--ink-soft);padding:4px 8px;border-radius:6px;cursor:pointer;
+  }
+  .topn-toggle button.active{background:var(--surface);color:var(--primary-dark);box-shadow:var(--shadow);}
+
+  .stage-summary-group{margin-bottom:16px;}
+  .stage-summary-group:last-child{margin-bottom:0;}
+  .stage-summary-head{display:flex;align-items:center;gap:7px;margin-bottom:6px;}
+  .stage-summary-head .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .stage-summary-head .name{font-weight:700;font-size:12.6px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .stage-summary-head .count{font-family:var(--font-mono);font-size:10.8px;color:var(--ink-faint);}
+  .ss-row{
+    display:flex;justify-content:space-between;gap:8px;padding:5px 0 5px 15px;
+    font-size:11.8px;border-bottom:1px dashed var(--line);cursor:pointer;
+  }
+  .ss-row:last-child{border-bottom:none;}
+  .ss-row .ss-date{font-family:var(--font-mono);color:var(--ink-faint);white-space:nowrap;font-size:11px;}
+  .ss-row .ss-val{font-weight:600;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;}
+  .ss-row:hover{color:var(--primary-dark);}
+  .ss-detail{display:none;padding:6px 0 6px 15px;}
+  .ss-detail.open{display:block;}
+
+  /* right rail: vitals + attributes */
+  .vital-block{margin-bottom:16px;}
+  .vital-block:last-child{margin-bottom:0;}
+  .vital-title{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;}
+  .vital-title span{font-size:12.6px;font-weight:700;}
+  .vital-title b{font-family:var(--font-mono);font-size:13px;color:var(--primary-dark);}
+  .vital-canvas-wrap{height:52px;}
+
+  .attr-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:12.5px;border-bottom:1px dashed var(--line);}
+  .attr-row:last-child{border-bottom:none;}
+  .attr-row .k{color:var(--ink-soft);}
+  .attr-row .v{font-weight:600;text-align:right;}
+
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .legend span{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-soft);}
+  .legend i{width:8px;height:8px;border-radius:50%;display:inline-block;}
+
+  footer.foot{
+    text-align:center;color:var(--ink-faint);font-family:var(--font-mono);
+    font-size:10.8px;margin-top:34px;letter-spacing:.03em;
+  }
+
+  @media print{
+    body{background:#fff;}
+    .btn, .search-box, #print-hide{display:none !important;}
+    .grid{grid-template-columns:1fr 1fr;}
+    .rail-right{grid-column:1/-1;}
+    .panel, .banner{box-shadow:none;border:1px solid #ccc;}
+    .tl-detail{display:block !important;}
+  }
+</style>
+</head>
+<body>
+
+  <div id="boot">
+    <div class="boot-mark"></div>
+    <div class="boot-text">LOADING PATIENT RECORD…</div>
+  </div>
+
+  <div id="fatal" style="display:none;"></div>
+
+  <div id="app">
+    <div class="wrap">
+
+      <div class="banner" id="banner"></div>
+
+      <div class="grid">
+        <div class="rail-left">
+          <div class="panel">
+            <h3>Enrollments &amp; Programs</h3>
+            <div id="programList"></div>
+          </div>
+          <div class="panel">
+            <h3>At a glance</h3>
+            <div id="statList"></div>
+          </div>
+        </div>
+
+        <div class="rail-main">
+          <div class="panel">
+            <div class="spine-head">
+              <h2>Care timeline</h2>
+              <span class="spine-count" id="spineCount"></span>
+            </div>
+            <input class="search-box" id="searchBox" type="text" placeholder="Filter encounters — e.g. weight, diagnosis, facility…">
+            <div class="timeline" id="timeline"></div>
+          </div>
+        </div>
+
+        <div class="rail-right">
+          <div class="panel" id="vitalsPanel" style="display:none;">
+            <h3>Trends</h3>
+            <div id="vitalsList"></div>
+          </div>
+          <div class="panel">
+            <div class="stage-panel-head">
+              <h3 style="margin-bottom:0;">By stage</h3>
+              <div class="topn-toggle" id="topnToggle">
+                <button type="button" data-n="5" class="active">Top 5</button>
+                <button type="button" data-n="10">Top 10</button>
+                <button type="button" data-n="all">All</button>
+              </div>
+            </div>
+            <div id="stageSummary"></div>
+          </div>
+          <div class="panel">
+            <h3>Patient attributes</h3>
+            <div id="attrList"></div>
+          </div>
+          <div class="panel">
+            <h3>Program legend</h3>
+            <div class="legend" id="legendList"></div>
+          </div>
+        </div>
+      </div>
+
+      <footer class="foot">DHIS2 Patient Care Record · generated client-side · no data leaves this browser session</footer>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============================================================
+     0. CONFIG
+  ============================================================ */
+  var PROGRAM_COLORS = ['#1F6F6B','#D98C3D','#3F7FA6','#7A5980','#5B7A4F','#B54B45','#8A6D3B','#3D6E8C'];
+
+  var VITAL_KEYWORDS = [
+    {key:'weight', label:'Weight (kg)', match:/weight/i, exclude:/birth/i},
+    {key:'height', label:'Height (cm)', match:/height|length/i},
+    {key:'temp', label:'Temperature (°C)', match:/temperat/i},
+    {key:'pulse', label:'Pulse (bpm)', match:/pulse|heart rate/i},
+    {key:'sbp', label:'Systolic BP', match:/systolic/i},
+    {key:'dbp', label:'Diastolic BP', match:/diastolic/i},
+    {key:'spo2', label:'SpO₂ (%)', match:/spo2|oxygen sat/i},
+    {key:'muac', label:'MUAC (cm)', match:/muac/i},
+    {key:'bmi', label:'BMI', match:/\bbmi\b/i}
+  ];
+
+  var NAME_ATTR_PATTERNS = {
+    first: /first name|given name/i,
+    last: /last name|surname|family name/i,
+    full: /^name$|full name/i,
+    sex: /^sex$|^gender$/i,
+    dob: /date of birth|birth date|^dob$/i,
+    phone: /phone|mobile|contact number/i,
+    healthId: /health id/i,
+    nationalId: /national id/i
+  };
+
+  /* ============================================================
+     1. URL PARAMS
+  ============================================================ */
+  var qp = new URLSearchParams(window.location.search);
+  var PARAMS = {
+    teiId: qp.get('teiId'),
+    enrollmentId: qp.get('enrollmentId'),
+    programId: qp.get('programId'),
+    orgUnitId: qp.get('orgUnitId')
+  };
+
+  /* ============================================================
+     2. API BASE DETECTION
+     Runs same-origin inside DHIS2 — relies on the browser session
+     cookie, no auth header is set.
+  ============================================================ */
+  function detectApiBase(){
+    var path = window.location.pathname;
+    var marker = '/api/apps/';
+    var idx = path.indexOf(marker);
+    if (idx !== -1) return path.substring(0, idx) + '/api';
+    // Fallback for apps served from dhis-web-* style paths or dev server:
+    // assume DHIS2 core is mounted at the same context root.
+    var segments = path.split('/').filter(Boolean);
+    if (segments.length > 1) {
+      return '/' + segments[0] + '/api';
+    }
+    return '/api';
+  }
+  var API = detectApiBase();
+
+  function apiGet(path){
+    var sep = path.indexOf('?') !== -1 ? '&' : '?';
+    return fetch(API + path, { credentials: 'same-origin', headers: {'Accept':'application/json'} })
+      .then(function(res){
+        if (!res.ok) throw new Error('Request failed (' + res.status + '): ' + API + path);
+        return res.json();
+      });
+  }
+
+  /* ============================================================
+     3. FATAL / BOOT UI
+  ============================================================ */
+  function showFatal(title, lines){
+    document.getElementById('boot').style.display = 'none';
+    var el = document.getElementById('fatal');
+    el.style.display = 'block';
+    el.innerHTML = '<h2>' + esc(title) + '</h2>' +
+      lines.map(function(l){ return '<p>' + l + '</p>'; }).join('');
+  }
+
+  if (!PARAMS.teiId) {
+    showFatal('Missing patient reference', [
+      'This dashboard expects a <code>teiId</code> query parameter.',
+      'Expected URL shape: <code>index.html?teiId=…&amp;enrollmentId=…&amp;programId=…&amp;orgUnitId=…</code>'
+    ]);
+    return;
+  }
+
+  /* ============================================================
+     4. UTILITIES
+  ============================================================ */
+  function esc(s){
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function initials(name){
+    if (!name) return '?';
+    var parts = name.trim().split(/\s+/).slice(0,2);
+    return parts.map(function(p){return p[0];}).join('').toUpperCase();
+  }
+
+  function fmtDate(d){
+    if (!d) return null;
+    var dt = new Date(d);
+    if (isNaN(dt.getTime())) return null;
+    return dt.toLocaleDateString(undefined, {year:'numeric', month:'short', day:'numeric'});
+  }
+
+  function fmtDateTime(d){
+    if (!d) return null;
+    var dt = new Date(d);
+    if (isNaN(dt.getTime())) return null;
+    return dt.toLocaleDateString(undefined, {year:'numeric', month:'short', day:'numeric'}) +
+      ' · ' + dt.toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'});
+  }
+
+  function monthKey(d){
+    var dt = new Date(d);
+    return dt.toLocaleDateString(undefined, {year:'numeric', month:'long'});
+  }
+
+  function ageFromDob(dob){
+    if (!dob) return null;
+    var b = new Date(dob), now = new Date();
+    if (isNaN(b.getTime())) return null;
+    var years = now.getFullYear() - b.getFullYear();
+    var m = now.getMonth() - b.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < b.getDate())) years--;
+    if (years < 2) {
+      var months = (now.getFullYear()-b.getFullYear())*12 + (now.getMonth()-b.getMonth());
+      return months + ' mo';
+    }
+    return years + ' yr';
+  }
+
+  function colorForProgram(id, programIds){
+    var idx = programIds.indexOf(id);
+    return PROGRAM_COLORS[idx % PROGRAM_COLORS.length];
+  }
+
+  function hexToRgba(hex, a){
+    var h = hex.replace('#','');
+    var r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+  }
+
+  /* ============================================================
+     5. DATA FETCH PIPELINE
+  ============================================================ */
+  var teiFields =
+    'trackedEntity,trackedEntityType,orgUnit,createdAt,inactive,deleted,' +
+    'attributes[attribute,value,valueType,displayName],' +
+    'enrollments[enrollment,program,status,enrollmentDate,incidentDate,completedDate,orgUnit,deleted,' +
+      'events[event,programStage,status,occurredAt,scheduledAt,orgUnit,deleted,dataValues[dataElement,value]]' +
+    ']';
+
+  function fetchTei(){
+    return apiGet('/tracker/trackedEntities/' + encodeURIComponent(PARAMS.teiId) +
+      '?fields=' + encodeURIComponent(teiFields));
+  }
+
+  function fetchProgramsMeta(programIds){
+    if (!programIds.length) return Promise.resolve({programs:[]});
+    var fields = [
+      'id,name,shortName',
+      'programStages[id,name,programStageDataElements[dataElement[id,name,shortName,valueType,',
+        'optionSet[options[code,name]]]]]',
+      'programTrackedEntityAttributes[trackedEntityAttribute[id,name,shortName,valueType,',
+        'optionSet[options[code,name]]]]'
+    ].join(',');
+    return apiGet('/programs.json?filter=id:in:[' + programIds.join(',') + ']&paging=false&fields=' + encodeURIComponent(fields));
+  }
+
+  function fetchOrgUnits(ouIds){
+    if (!ouIds.length) return Promise.resolve({organisationUnits:[]});
+    return apiGet('/organisationUnits.json?filter=id:in:[' + ouIds.join(',') + ']&paging=false&fields=id,name');
+  }
+
+  /* ============================================================
+     6. MAIN
+  ============================================================ */
+  var STATE = {
+    tei: null,
+    programMeta: {},      // programId -> {name, stages:{id:{name,dataElements:{id:{name,valueType,optionSet}}}}, attrs:{id:{name,valueType,optionSet}}, masterStageId}
+    ouNames: {},           // ouId -> name
+    events: [],            // flattened, enriched, sorted desc
+    visits: [],            // events grouped by enrollment + calendar day
+    stageGroups: [],       // events grouped by program stage
+    programIds: [],
+    filterProgram: null,   // null = all
+    filterText: '',
+    stageTopN: 5,          // 5 / 10 / Infinity, for the "By stage" panel
+    openVisits: {},        // key -> bool, remembers expand state across re-renders
+    openStages: {}         // "program|stage|event" -> bool
+  };
+
+  fetchTei()
+    .then(function(tei){
+      STATE.tei = tei;
+      var programIds = uniq((tei.enrollments||[]).map(function(e){return e.program;}).filter(Boolean));
+      STATE.programIds = programIds;
+      var ouIds = uniq(
+        [tei.orgUnit].concat(
+          (tei.enrollments||[]).map(function(e){return e.orgUnit;}),
+          (tei.enrollments||[]).reduce(function(acc,e){ return acc.concat((e.events||[]).map(function(ev){return ev.orgUnit;})); }, [])
+        ).filter(Boolean)
+      );
+      return Promise.all([ fetchProgramsMeta(programIds), fetchOrgUnits(ouIds) ]);
+    })
+    .then(function(results){
+      var progRes = results[0], ouRes = results[1];
+      (progRes.programs || []).forEach(function(p){
+        var stages = {};
+        (p.programStages||[]).forEach(function(ps){
+          var des = {};
+          (ps.programStageDataElements||[]).forEach(function(psde){
+            if (!psde.dataElement) return;
+            des[psde.dataElement.id] = {
+              name: psde.dataElement.shortName || psde.dataElement.name,
+              valueType: psde.dataElement.valueType,
+              optionSet: buildOptionMap(psde.dataElement.optionSet)
+            };
+          });
+          stages[ps.id] = {name: ps.name, dataElements: des};
+        });
+        var attrs = {};
+        (p.programTrackedEntityAttributes||[]).forEach(function(pta){
+          if (!pta.trackedEntityAttribute) return;
+          attrs[pta.trackedEntityAttribute.id] = {
+            name: pta.trackedEntityAttribute.shortName || pta.trackedEntityAttribute.name,
+            valueType: pta.trackedEntityAttribute.valueType,
+            optionSet: buildOptionMap(pta.trackedEntityAttribute.optionSet)
+          };
+        });
+        var masterStageId = null;
+        Object.keys(stages).forEach(function(sid){
+          if (/master\s*register/i.test(stages[sid].name || '')) masterStageId = sid;
+        });
+        STATE.programMeta[p.id] = {name: p.name, stages: stages, attrs: attrs, masterStageId: masterStageId};
+      });
+      (ouRes.organisationUnits || []).forEach(function(ou){ STATE.ouNames[ou.id] = ou.name; });
+
+      buildEventList();
+      buildVisits();
+      buildStageGroups();
+      render();
+    })
+    .catch(function(err){
+      console.error(err);
+      showFatal('Could not load patient record', [
+        esc(err.message || String(err)),
+        'Verify this app is opened from within DHIS2 (same-origin session), and that the ' +
+          '<code>teiId</code> in the URL is valid: <code>' + esc(PARAMS.teiId) + '</code>.',
+        'Detected API base: <code>' + esc(API) + '</code>'
+      ]);
+    });
+
+  function uniq(arr){ return arr.filter(function(v,i,a){ return v && a.indexOf(v)===i; }); }
+
+  function buildOptionMap(optionSet){
+    var map = {};
+    if (optionSet && optionSet.options) {
+      optionSet.options.forEach(function(o){ map[o.code] = o.name; });
+    }
+    return map;
+  }
+
+  function attrLabel(attributeId, programId){
+    for (var i=0;i<STATE.programIds.length;i++){
+      var pid = programId || STATE.programIds[i];
+      var meta = STATE.programMeta[pid];
+      if (meta && meta.attrs[attributeId]) return meta.attrs[attributeId];
+      if (programId) break;
+    }
+    return null;
+  }
+
+  function resolveAttrValue(a){
+    var meta = attrLabel(a.attribute);
+    var label = a.displayName || (meta && meta.name) || a.attribute;
+    var valueType = a.valueType || (meta && meta.valueType);
+    var value = a.value;
+    if (meta && meta.optionSet && meta.optionSet[value] !== undefined) value = meta.optionSet[value];
+    else value = formatByType(value, valueType);
+    return {label: label, value: value, raw: a.value};
+  }
+
+  function formatByType(value, valueType){
+    if (value === null || value === undefined || value === '') return '—';
+    if (valueType === 'DATE') return fmtDate(value) || value;
+    if (valueType === 'DATETIME') return fmtDateTime(value) || value;
+    if (valueType === 'BOOLEAN' || valueType === 'TRUE_ONLY') {
+      if (value === true || value === 'true') return 'Yes';
+      if (value === false || value === 'false') return 'No';
+    }
+    return value;
+  }
+
+  function buildEventList(){
+    var list = [];
+    (STATE.tei.enrollments || []).forEach(function(en){
+      if (en.deleted) return;
+      var progMeta = STATE.programMeta[en.program] || {name: en.program, stages:{}};
+      (en.events || []).forEach(function(ev){
+        if (ev.deleted) return;
+        var stageMeta = progMeta.stages[ev.programStage] || {name: ev.programStage, dataElements:{}};
+        var when = ev.occurredAt || ev.scheduledAt;
+        var values = (ev.dataValues || []).map(function(dv){
+          var deMeta = stageMeta.dataElements[dv.dataElement] || {};
+          var label = deMeta.name || dv.dataElement;
+          var value = dv.value;
+          if (deMeta.optionSet && deMeta.optionSet[value] !== undefined) value = deMeta.optionSet[value];
+          else value = formatByType(value, deMeta.valueType);
+          return {label:label, value:value, raw:dv.value, rawLabelKey: (deMeta.name||'')};
+        }).filter(function(v){ return v.value !== '—' && v.value !== '' && v.value !== null; });
+
+        list.push({
+          event: ev.event,
+          program: en.program,
+          programName: progMeta.name,
+          enrollment: en.enrollment,
+          enrollmentStatus: en.status,
+          stageId: ev.programStage,
+          stageName: stageMeta.name,
+          isMaster: !!(progMeta.masterStageId && progMeta.masterStageId === ev.programStage),
+          status: ev.status,
+          when: when,
+          isFuture: !ev.occurredAt && !!ev.scheduledAt,
+          orgUnitName: STATE.ouNames[ev.orgUnit] || ev.orgUnit,
+          values: values
+        });
+      });
+    });
+    list.sort(function(a,b){
+      var da = a.when ? new Date(a.when).getTime() : 0;
+      var db = b.when ? new Date(b.when).getTime() : 0;
+      return db - da;
+    });
+    STATE.events = list;
+  }
+
+  /* ------------------------------------------------------------
+     Visits: events sharing the same enrollment + calendar day are
+     one clinical visit. If the program has a "Master Register"
+     style stage, its event anchors the visit (services selected
+     there explain why the sibling stage events exist); otherwise
+     the visit simply bundles whatever happened that day.
+  ------------------------------------------------------------ */
+  function buildVisits(){
+    var groups = {};
+    STATE.events.forEach(function(ev){
+      var dayKey = ev.when ? new Date(ev.when).toDateString() : ('nodate-' + ev.event);
+      var key = ev.enrollment + '|' + dayKey;
+      if (!groups[key]) {
+        groups[key] = {
+          key: key,
+          enrollment: ev.enrollment,
+          program: ev.program,
+          programName: ev.programName,
+          enrollmentStatus: ev.enrollmentStatus,
+          when: ev.when,
+          orgUnitName: ev.orgUnitName,
+          isFuture: ev.isFuture,
+          masterEvent: null,
+          events: []
+        };
+      }
+      var g = groups[key];
+      g.events.push(ev);
+      if (ev.isMaster) {
+        g.masterEvent = ev;
+        g.when = ev.when || g.when;
+        g.orgUnitName = ev.orgUnitName || g.orgUnitName;
+        g.isFuture = ev.isFuture;
+      }
+    });
+    var visits = Object.keys(groups).map(function(k){ return groups[k]; });
+    visits.forEach(function(v){
+      v.events.sort(function(a,b){ return (a.isMaster?-1:0) - (b.isMaster?-1:0); });
+    });
+    visits.sort(function(a,b){
+      var da = a.when ? new Date(a.when).getTime() : 0;
+      var db = b.when ? new Date(b.when).getTime() : 0;
+      return db - da;
+    });
+    STATE.visits = visits;
+  }
+
+  /* ------------------------------------------------------------
+     Per-stage grouping, for the "top N per stage" side panel —
+     lets a health worker scan e.g. the last 10 ANC visits' weight
+     trend without wading through every other stage in between.
+  ------------------------------------------------------------ */
+  function buildStageGroups(){
+    var groups = {};
+    STATE.events.forEach(function(ev){
+      var key = ev.program + '|' + ev.stageId;
+      if (!groups[key]) {
+        groups[key] = { key:key, program: ev.program, programName: ev.programName, stageName: ev.stageName, events: [] };
+      }
+      groups[key].events.push(ev);
+    });
+    var list = Object.keys(groups).map(function(k){ return groups[k]; });
+    list.forEach(function(g){
+      g.events.sort(function(a,b){
+        var da = a.when ? new Date(a.when).getTime() : 0;
+        var db = b.when ? new Date(b.when).getTime() : 0;
+        return db - da;
+      });
+    });
+    list.sort(function(a,b){
+      return b.events.length - a.events.length;
+    });
+    STATE.stageGroups = list;
+  }
+
+  /* ============================================================
+     7. RENDER
+  ============================================================ */
+  function render(){
+    document.getElementById('boot').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    renderBanner();
+    renderProgramRail();
+    renderStats();
+    renderLegend();
+    renderAttributes();
+    renderVitals();
+    renderTimeline();
+    renderStageSummary();
+    bindControls();
+  }
+
+  function getDemographics(){
+    var attrs = (STATE.tei.attributes || []).map(resolveAttrValue);
+    var find = function(pattern){
+      var hit = attrs.find(function(a){ return pattern.test(a.label || ''); });
+      return hit ? hit.value : null;
+    };
+    var first = find(NAME_ATTR_PATTERNS.first);
+    var last = find(NAME_ATTR_PATTERNS.last);
+    var full = find(NAME_ATTR_PATTERNS.full);
+    var name = full || [first,last].filter(Boolean).join(' ') || 'Unnamed patient';
+    return {
+      name: name,
+      sex: find(NAME_ATTR_PATTERNS.sex),
+      dob: (function(){
+        var raw = attrs.find(function(a){ return NAME_ATTR_PATTERNS.dob.test(a.label||''); });
+        return raw ? raw.raw : null;
+      })(),
+      phone: find(NAME_ATTR_PATTERNS.phone),
+      healthId: find(NAME_ATTR_PATTERNS.healthId),
+      nationalId: find(NAME_ATTR_PATTERNS.nationalId),
+      attrs: attrs
+    };
+  }
+
+  function renderBanner(){
+    var d = getDemographics();
+    var age = ageFromDob(d.dob);
+    var ou = STATE.ouNames[STATE.tei.orgUnit] || STATE.tei.orgUnit;
+    var metaBits = [];
+    if (age) metaBits.push('<span><b>' + esc(age) + '</b> old</span>');
+    if (d.sex) metaBits.push('<span><b>' + esc(d.sex) + '</b></span>');
+    if (ou) metaBits.push('<span>Registered at <b>' + esc(ou) + '</b></span>');
+    if (d.phone) metaBits.push('<span>' + esc(d.phone) + '</span>');
+
+    var flags = [];
+    if (STATE.tei.inactive) flags.push('<span class="flag critical">Inactive TEI</span>');
+    var activeCount = (STATE.tei.enrollments||[]).filter(function(e){return e.status==='ACTIVE';}).length;
+    if (activeCount) flags.push('<span class="flag">' + activeCount + ' active program' + (activeCount>1?'s':'') + '</span>');
+    var overdue = STATE.events.filter(function(e){return e.status==='OVERDUE';}).length;
+    if (overdue) flags.push('<span class="flag critical">' + overdue + ' overdue visit' + (overdue>1?'s':'') + '</span>');
+
+    document.getElementById('banner').innerHTML =
+      '<div class="avatar">' + esc(initials(d.name)) + '</div>' +
+      '<div class="banner-main">' +
+        '<div class="banner-name">' + esc(d.name) +
+          (d.healthId ? '<span class="sub">Health ID ' + esc(d.healthId) + '</span>' : '') +
+        '</div>' +
+        '<div class="banner-meta">' + metaBits.join('') + '</div>' +
+        '<div class="banner-id">TEI <span id="teiIdText">' + esc(STATE.tei.trackedEntity) + '</span>' +
+          '<button id="copyTeiBtn" type="button">Copy</button></div>' +
+        '<div class="banner-flags">' + flags.join('') + '</div>' +
+      '</div>' +
+      '<div class="banner-actions">' +
+        '<button class="btn btn-ghost" id="printBtn" type="button">🖨 Print summary</button>' +
+      '</div>';
+
+    document.getElementById('copyTeiBtn').addEventListener('click', function(){
+      var text = STATE.tei.trackedEntity;
+      if (navigator.clipboard) navigator.clipboard.writeText(text);
+      this.textContent = 'Copied';
+      var self = this;
+      setTimeout(function(){ self.textContent = 'Copy'; }, 1400);
+    });
+    document.getElementById('printBtn').addEventListener('click', function(){ window.print(); });
+  }
+
+  function renderProgramRail(){
+    var enrollments = (STATE.tei.enrollments || []).filter(function(e){return !e.deleted;});
+    enrollments.sort(function(a,b){
+      return new Date(b.enrollmentDate||0) - new Date(a.enrollmentDate||0);
+    });
+    var html = enrollments.map(function(en){
+      var meta = STATE.programMeta[en.program] || {name: en.program};
+      var color = colorForProgram(en.program, STATE.programIds);
+      var isCurrent = en.enrollment === PARAMS.enrollmentId;
+      return '<div class="prog-item' + (isCurrent ? ' active' : '') + '" data-program="' + esc(en.program) + '" title="Enrolled ' + esc(fmtDate(en.enrollmentDate)||'') + '">' +
+        '<span class="prog-dot" style="background:' + color + '"></span>' +
+        '<span class="prog-name">' + esc(meta.name) + '</span>' +
+        '<span class="prog-status st-' + esc(en.status) + '">' + esc(en.status) + '</span>' +
+      '</div>';
+    }).join('') || '<div style="color:var(--ink-faint);font-size:12.5px;">No enrollments found.</div>';
+    document.getElementById('programList').innerHTML = html;
+  }
+
+  function renderStats(){
+    var events = STATE.events;
+    var withDates = events.filter(function(e){return e.when;});
+    var first = withDates.length ? withDates[withDates.length-1] : null;
+    var last = withDates.length ? withDates[0] : null;
+    var rows = [
+      ['Total enrollments', (STATE.tei.enrollments||[]).filter(function(e){return !e.deleted;}).length],
+      ['Total encounters', events.length],
+      ['First contact', first ? fmtDate(first.when) : '—'],
+      ['Most recent contact', last ? fmtDate(last.when) : '—']
+    ];
+    document.getElementById('statList').innerHTML = rows.map(function(r){
+      return '<div class="stat-row"><span>' + esc(r[0]) + '</span><b>' + esc(r[1]) + '</b></div>';
+    }).join('');
+  }
+
+  function renderLegend(){
+    var html = STATE.programIds.map(function(pid){
+      var meta = STATE.programMeta[pid] || {name: pid};
+      var color = colorForProgram(pid, STATE.programIds);
+      return '<span><i style="background:' + color + '"></i>' + esc(meta.name) + '</span>';
+    }).join('');
+    document.getElementById('legendList').innerHTML = html || '<span style="color:var(--ink-faint)">No programs</span>';
+  }
+
+  function renderAttributes(){
+    var d = getDemographics();
+    var rows = d.attrs.filter(function(a){
+      return !NAME_ATTR_PATTERNS.first.test(a.label) &&
+             !NAME_ATTR_PATTERNS.last.test(a.label) &&
+             !NAME_ATTR_PATTERNS.full.test(a.label);
+    });
+    document.getElementById('attrList').innerHTML = rows.map(function(a){
+      return '<div class="attr-row"><span class="k">' + esc(a.label) + '</span><span class="v">' + esc(a.value) + '</span></div>';
+    }).join('') || '<div style="color:var(--ink-faint);font-size:12.5px;">No attributes recorded.</div>';
+  }
+
+  function renderVitals(){
+    var series = {};
+    STATE.events.slice().reverse().forEach(function(ev){
+      if (!ev.when) return;
+      ev.values.forEach(function(v){
+        VITAL_KEYWORDS.forEach(function(vk){
+          if (vk.match.test(v.label) && (!vk.exclude || !vk.exclude.test(v.label))) {
+            var num = parseFloat(v.raw);
+            if (!isNaN(num)) {
+              series[vk.key] = series[vk.key] || {label:vk.label, points:[]};
+              series[vk.key].points.push({x: ev.when, y: num});
+            }
+          }
+        });
+      });
+    });
+    var keys = Object.keys(series).filter(function(k){ return series[k].points.length >= 2; });
+    if (!keys.length) {
+      document.getElementById('vitalsPanel').style.display = 'none';
+      return;
+    }
+    document.getElementById('vitalsPanel').style.display = 'block';
+    var container = document.getElementById('vitalsList');
+    container.innerHTML = keys.map(function(k){
+      var latest = series[k].points[series[k].points.length-1];
+      return '<div class="vital-block">' +
+        '<div class="vital-title"><span>' + esc(series[k].label) + '</span><b>' + esc(latest.y) + '</b></div>' +
+        '<div class="vital-canvas-wrap"><canvas id="vital-' + k + '"></canvas></div>' +
+      '</div>';
+    }).join('');
+
+    keys.forEach(function(k){
+      var ctx = document.getElementById('vital-' + k);
+      if (!ctx || typeof Chart === 'undefined') return;
+      var pts = series[k].points;
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: pts.map(function(p){ return fmtDate(p.x); }),
+          datasets: [{
+            data: pts.map(function(p){ return p.y; }),
+            borderColor: '#1F6F6B',
+            backgroundColor: 'rgba(31,111,107,0.08)',
+            borderWidth: 2,
+            pointRadius: 2.5,
+            pointBackgroundColor: '#1F6F6B',
+            tension: 0.35,
+            fill: true
+          }]
+        },
+        options: {
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false}, tooltip:{ mode:'index', intersect:false } },
+          scales:{ x:{ display:false }, y:{ display:false } },
+          elements:{ line:{ borderJoinStyle:'round' } }
+        }
+      });
+    });
+  }
+
+  function pillsHtml(values, limit){
+    var shown = limit ? values.slice(0, limit) : values;
+    var html = shown.map(function(v){
+      var isAbn = /abnormal|positive|severe|critical/i.test(String(v.value));
+      return '<span class="pill' + (isAbn ? ' abn' : '') + '"><span class="k">' + esc(v.label) + '</span><span class="v">' + esc(v.value) + '</span></span>';
+    }).join('');
+    var more = limit ? values.length - limit : 0;
+    if (more > 0) html += '<span class="pill">+' + more + ' more</span>';
+    return html;
+  }
+
+  function detailTableHtml(values){
+    return '<table class="detail-table">' + values.map(function(v){
+      return '<tr><td>' + esc(v.label) + '</td><td>' + esc(v.value) + '</td></tr>';
+    }).join('') + '</table>';
+  }
+
+  function renderTimeline(){
+    var container = document.getElementById('timeline');
+    var visits = STATE.visits.filter(function(v){
+      if (STATE.filterProgram && v.program !== STATE.filterProgram) return false;
+      if (STATE.filterText) {
+        var hay = (v.programName + ' ' + v.orgUnitName + ' ' + v.events.map(function(ev){
+          return ev.stageName + ' ' + ev.values.map(function(val){ return val.label + ' ' + val.value; }).join(' ');
+        }).join(' ')).toLowerCase();
+        if (hay.indexOf(STATE.filterText.toLowerCase()) === -1) return false;
+      }
+      return true;
+    });
+
+    var totalEvents = STATE.events.length;
+    var shownEvents = visits.reduce(function(n,v){ return n + v.events.length; }, 0);
+    document.getElementById('spineCount').textContent = shownEvents + ' of ' + totalEvents + ' encounters · ' + visits.length + ' visits';
+
+    if (!visits.length) {
+      container.innerHTML = '<div class="empty-state"><div class="glyph">◌</div>No encounters match the current filter.</div>';
+      return;
+    }
+
+    var html = '';
+    var lastMonth = null;
+    visits.forEach(function(v){
+      var mk = v.when ? monthKey(v.when) : 'Undated';
+      if (mk !== lastMonth) {
+        html += '<div class="month-divider">' + esc(mk) + '</div>';
+        lastMonth = mk;
+      }
+      var color = colorForProgram(v.program, STATE.programIds);
+      var dateStr = v.when ? (v.isFuture ? 'Scheduled ' + fmtDate(v.when) : fmtDateTime(v.when)) : 'No date';
+      var master = v.masterEvent;
+      var isOpen = !!STATE.openVisits[v.key];
+
+      if (v.events.length === 1) {
+        // single event that day — render as a plain encounter card
+        var ev = v.events[0];
+        html += '<div class="tl-row">' +
+          '<div class="tl-rail"><div class="tl-node' + (ev.isFuture ? ' future' : '') + '" style="' + (ev.isFuture ? '' : 'background:' + color) + '"></div></div>' +
+          '<div class="tl-card' + (isOpen ? ' open' : '') + '" data-visit="' + esc(v.key) + '">' +
+            '<div class="tl-card-top">' +
+              '<span class="tl-stage">' + esc(ev.stageName) +
+                '<span class="tl-prog-tag" style="background:' + color + '">' + esc(v.programName) + '</span>' +
+                '<span class="tl-status st-' + esc(v.enrollmentStatus) + '">' + esc(ev.status) + '</span>' +
+              '</span>' +
+              '<span class="tl-date">' + esc(dateStr) + '</span>' +
+            '</div>' +
+            '<div class="tl-sub">' + esc(v.orgUnitName || '') + '</div>' +
+            '<div class="tl-pills">' + pillsHtml(ev.values, 6) + '</div>' +
+            '<div class="tl-detail">' + detailTableHtml(ev.values) + '</div>' +
+          '</div>' +
+        '</div>';
+      } else {
+        // multi-stage visit — master register (if any) anchors the header,
+        // every linked stage event nests underneath, independently expandable
+        var linked = master ? v.events.filter(function(e){ return e !== master; }) : v.events;
+        var title = master ? master.stageName : (v.programName + ' visit');
+        var topStatus = master ? master.status : v.enrollmentStatus;
+
+        html += '<div class="tl-row">' +
+          '<div class="tl-rail"><div class="tl-node' + (v.isFuture ? ' future' : '') + '" style="' + (v.isFuture ? '' : 'background:' + color) + '"></div></div>' +
+          '<div class="tl-card' + (isOpen ? ' open' : '') + '" data-visit="' + esc(v.key) + '">' +
+            '<div class="visit-head-row">' +
+              '<span class="visit-title">' + esc(title) +
+                '<span class="tl-prog-tag" style="background:' + color + '">' + esc(v.programName) + '</span>' +
+                (topStatus ? '<span class="visit-badge">' + esc(topStatus) + '</span>' : '') +
+              '</span>' +
+              '<span class="tl-date">' + esc(dateStr) + '</span>' +
+            '</div>' +
+            '<div class="tl-sub">' + esc(v.orgUnitName || '') +
+              '<span class="visit-count">· ' + linked.length + ' service' + (linked.length===1?'':'s') + ' recorded</span>' +
+              '<span class="visit-toggle-hint">' + (isOpen ? 'Hide detail ▲' : 'Show detail ▼') + '</span>' +
+            '</div>' +
+            (master ? '<div class="tl-pills">' + pillsHtml(master.values, 6) + '</div>' : '') +
+            '<div class="stage-list">' +
+              linked.map(function(ev){
+                var skey = v.key + '::' + ev.event;
+                var sOpen = !!STATE.openStages[skey];
+                return '<div class="stage-block' + (sOpen ? ' open' : '') + '" data-stage-key="' + esc(skey) + '">' +
+                  '<div class="stage-block-head">' +
+                    '<span class="dot" style="background:' + color + '"></span>' +
+                    '<span class="name">' + esc(ev.stageName) + '</span>' +
+                    '<span class="status st-' + esc(v.enrollmentStatus) + '">' + esc(ev.status) + '</span>' +
+                    '<span class="caret">' + (sOpen ? '▲' : '▼') + '</span>' +
+                  '</div>' +
+                  '<div class="tl-pills">' + pillsHtml(ev.values, 5) + '</div>' +
+                  '<div class="stage-detail">' + detailTableHtml(ev.values) + '</div>' +
+                '</div>';
+              }).join('') +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }
+    });
+    container.innerHTML = html;
+
+    Array.prototype.forEach.call(container.querySelectorAll('.tl-card'), function(card){
+      card.addEventListener('click', function(e){
+        if (e.target.closest('.stage-block')) return; // handled separately, don't bubble-toggle the card
+        var key = card.getAttribute('data-visit');
+        STATE.openVisits[key] = !STATE.openVisits[key];
+        renderTimeline();
+      });
+    });
+    Array.prototype.forEach.call(container.querySelectorAll('.stage-block-head'), function(head){
+      head.addEventListener('click', function(e){
+        e.stopPropagation();
+        var block = head.closest('.stage-block');
+        var skey = block.getAttribute('data-stage-key');
+        STATE.openStages[skey] = !STATE.openStages[skey];
+        renderTimeline();
+      });
+    });
+  }
+
+  function renderStageSummary(){
+    var container = document.getElementById('stageSummary');
+    var n = STATE.stageTopN;
+    var groups = STATE.stageGroups.filter(function(g){
+      return !STATE.filterProgram || g.program === STATE.filterProgram;
+    });
+    if (!groups.length) {
+      container.innerHTML = '<div style="color:var(--ink-faint);font-size:12.5px;">No stage data yet.</div>';
+      return;
+    }
+    container.innerHTML = groups.map(function(g){
+      var color = colorForProgram(g.program, STATE.programIds);
+      var shown = (n === Infinity) ? g.events : g.events.slice(0, n);
+      var rows = shown.map(function(ev){
+        var skey = 'ss::' + g.key + '::' + ev.event;
+        var isOpen = !!STATE.openStages[skey];
+        var firstVal = ev.values[0];
+        var summary = firstVal ? (firstVal.label + ': ' + firstVal.value) : (ev.status || '—');
+        return '<div class="ss-row" data-ss-key="' + esc(skey) + '">' +
+            '<span class="ss-date">' + esc(ev.when ? fmtDate(ev.when) : '—') + '</span>' +
+            '<span class="ss-val">' + esc(summary) + '</span>' +
+          '</div>' +
+          '<div class="ss-detail' + (isOpen ? ' open' : '') + '" data-ss-detail="' + esc(skey) + '">' + detailTableHtml(ev.values) + '</div>';
+      }).join('');
+      return '<div class="stage-summary-group">' +
+        '<div class="stage-summary-head"><span class="dot" style="background:' + color + '"></span>' +
+          '<span class="name">' + esc(g.stageName) + '</span>' +
+          '<span class="count">' + g.events.length + '</span></div>' +
+        rows +
+      '</div>';
+    }).join('');
+
+    Array.prototype.forEach.call(container.querySelectorAll('.ss-row'), function(row){
+      row.addEventListener('click', function(){
+        var key = row.getAttribute('data-ss-key');
+        STATE.openStages[key] = !STATE.openStages[key];
+        renderStageSummary();
+      });
+    });
+  }
+
+  function bindControls(){
+    Array.prototype.forEach.call(document.querySelectorAll('.prog-item'), function(item){
+      item.addEventListener('click', function(){
+        var pid = item.getAttribute('data-program');
+        STATE.filterProgram = (STATE.filterProgram === pid) ? null : pid;
+        Array.prototype.forEach.call(document.querySelectorAll('.prog-item'), function(i2){
+          var p2 = i2.getAttribute('data-program');
+          i2.classList.toggle('dimmed', !!STATE.filterProgram && p2 !== STATE.filterProgram);
+        });
+        renderTimeline();
+        renderStageSummary();
+      });
+    });
+    var searchBox = document.getElementById('searchBox');
+    searchBox.addEventListener('input', function(){
+      STATE.filterText = searchBox.value.trim();
+      renderTimeline();
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#topnToggle button'), function(btn){
+      btn.addEventListener('click', function(){
+        var n = btn.getAttribute('data-n');
+        STATE.stageTopN = (n === 'all') ? Infinity : parseInt(n, 10);
+        Array.prototype.forEach.call(document.querySelectorAll('#topnToggle button'), function(b2){
+          b2.classList.toggle('active', b2 === btn);
+        });
+        renderStageSummary();
+      });
+    });
+  }
+
+})();
+</script>
+</body>
+</html>

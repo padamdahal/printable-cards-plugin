@@ -38,10 +38,15 @@ async function loadDataInCard() {
 		// HTML element to render card inside
 		const parentElement = document.getElementById('card');
 		
-		console.log('Getting list of cards');
-		const cards = await fetchJSON('../../../api/dataStore/cardDesigner/'+cardId);
-		const cardToRender = cards;
-				
+		console.log('Getting card config');
+		const cardConfig = await fetchJSON('../../../api/dataStore/cardDesigner/'+cardId);
+		const cardToRender = cardConfig;
+
+		// if cardConfig has path
+		if(cardToRender.path){
+			window.location.replace('../../../api/apps/Patient-Cards/'+cardToRender.path+'?teiId='+teiId+'&enrollmentId='+enrollmentId+'&programId='+programId+'&orgUnitId='+orgUnitId)
+		}
+		//
 		console.log('Preparing optionSet collection');
 		
 		const optionSets = cardToRender.optionSets || {};
