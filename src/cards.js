@@ -121,13 +121,17 @@ async function loadDataInCard() {
 						
 						// Replace placeholders where it matches event/dataValues
 						if(events){
+							const date = new Date();
+							const formattedDate = date.toISOString().split('T')[0]; 
+							console.log(formattedDate);
 							// Check for events
 							let filteredEvents;
 							if(section.programStage){
-								filteredEvents = events.filter(ev => ev.programStage == section.programStage);
+								filteredEvents = events.filter(ev => ev.programStage == section.programStage && ev.occurredAt.substring(0, 10) === formattedDate);
 							}else{
-								filteredEvents = events;
+								filteredEvents = events.filter(ev => ev.occurredAt.substring(0, 10) === formattedDate);
 							}
+							console.log(filteredEvents);
 							
 							filteredEvents.forEach(event => {
 								let value;
