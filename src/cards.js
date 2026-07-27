@@ -6,11 +6,7 @@ const enrollmentId = params.get('enrollmentId');
 const programId = params.get('programId');
 const orgUnitId = params.get('orgUnitId');
 const cardId = params.get("cardId");
-
-//console.log('TEI ID =>'+teiId);
-//console.log('ENROLLMENT ID =>'+enrollmentId);
-//console.log('PROGRAM ID =>'+programId);
-//console.log('ORG UNIT ID =>'+orgUnitId);
+const eventId = params.get("eventId");
 
 window.onload = function() {
 	loadDataInCard();
@@ -21,23 +17,34 @@ async function loadDataInCard() {
 		// Gather enrollmentData
 		const url = "../../../api/tracker/enrollments/"+enrollmentId+"?fields=*";
 		const enrollmentData = await fetchJSON(url);
-		
-		//const eventsUrl = "../../../../api/tracker/events?				program="+programId+"&orgUnit="+orgUnitId+"&trackedEntity="+teiId+"&paging=false";
+
 		// Split attributes and events
-    const events = enrollmentData.events;
+		const events = enrollmentData.events;
 		const attributes = enrollmentData.attributes;
-		
-		// Get User info
-		const meUrl = '../../../api/me.json?fields=username,firstName,surname,organisationUnits[id,name,shortName,displayName]';
+
+		// If an explicit eventId is present in the querystring, fetch that single event.
+		// When set, it overrides the "today's events" / "full history" logic below and
+		// every section resolves its event placeholders against this one event only.
+		let explicitEvent = null;
+		if (eventId) {
+			console.log('Explicit eventId supplied, fetching event: ' + eventId);
+			const explicitEventUrl = "../../../api/tracker/events/"+eventId+"?fields=*";
+			explicitEvent = await fetchJSON(explicitEventUrl);
+		}
+
+		// Get User info (expanded fields so {me.xxx} / {provider.xxx} placeholders have more to draw on.
+		// Note: exact availability of phoneNumber/email/jobTitle as top-level fields can vary by DHIS2 version -
+		// verify against your instance's /api/me.json?fields=* if any of these come back empty.)
+		const meUrl = '../../../api/me.json?fields=username,firstName,surname,phoneNumber,email,jobTitle,organisationUnits[id,name,shortName,displayName]';
 		const me = await fetchJSON(meUrl);
-		
+
 		const ouUrl = '../../../api/organisationUnits/'+orgUnitId+'?fields=id,name,displayName,code,parent[id,name,displayName,code,parent[id,name,displayName,code,parent[id,name,displayName,code,parent[id,name,displayName,code]]]]';
 		const orgUnit = await fetchJSON(ouUrl);
 		var optionSetCollection = {};
-		
+
 		// HTML element to render card inside
 		const parentElement = document.getElementById('card');
-		
+
 		console.log('Getting card config');
 		const cardConfig = await fetchJSON('../../../api/dataStore/cardDesigner/'+cardId);
 		const cardToRender = cardConfig;
@@ -46,9 +53,9 @@ async function loadDataInCard() {
 		if(cardToRender.path){
 			window.location.replace('../../../api/apps/Patient-Cards/'+cardToRender.path+'?teiId='+teiId+'&enrollmentId='+enrollmentId+'&programId='+programId+'&orgUnitId='+orgUnitId)
 		}
-		//
+
 		console.log('Preparing optionSet collection');
-		
+
 		const optionSets = cardToRender.optionSets || {};
 		const promises = Object.keys(optionSets).map(dataElementId => {
 		  const optionSetId = optionSets[dataElementId];
@@ -64,34 +71,57 @@ async function loadDataInCard() {
 		Promise.all(promises).then(() => {
 			console.log('Preparing card: '+cardToRender.name);
 			var cardSections = cardToRender.sections;
-			
+
 			var cardHtmlString = "";
 			const regex = /\{.+?\}/g;
-			
+
+			// Tracks every placeholder that actually resolved to a real value, across all
+			// sections. Used afterwards to decide whether to keep or drop [[suffix:...]] text.
+			const resolvedPlaceholders = new Set();
+
+			// Chooses which event(s) a section should pull placeholder values from.
+			// - explicitEvent (via ?eventId=) always wins, for both single and repeatable sections.
+			// - otherwise 'today' mode (single sections) filters to events dated today.
+			// - otherwise 'history' mode (repeatable sections) returns the full filtered history.
+			function getFilteredEvents(section, mode){
+				if(explicitEvent) return [explicitEvent];
+				if(!events) return [];
+				if(mode === 'today'){
+					const formattedDate = new Date().toISOString().split('T')[0];
+					return events.filter(ev =>
+						(!section.programStage || ev.programStage == section.programStage) &&
+						ev.occurredAt.substring(0, 10) === formattedDate
+					);
+				}
+				return section.programStage
+					? events.filter(ev => ev.programStage == section.programStage)
+					: events;
+			}
+
 			cardSections.forEach(section => {
 				console.log("Processing card section.");
 				var roughHtmlHeader = section.htmlHeader
 				const htmlHeader = (roughHtmlHeader != undefined) ? roughHtmlHeader.replace(/<\/tbody>\s*<\/table>\s*$/, ''):'';
-								
+
 				var roughHtmlFooter = section.htmlFooter;
 				const htmlFooter = (roughHtmlFooter) ? roughHtmlFooter.replace(/^\s*<table[^>]*>\s*<tbody>/, ''):'';
-				
+
 				if(section.type == 'single'){
 					var htmlBody = section.htmlBody;
-					const valuePlaceholders = htmlBody.match(regex);
-					
+					const valuePlaceholders = htmlBody.match(regex) || [];
+
 					valuePlaceholders.forEach(placeholder => {
 						let key = placeholder.replace(/[{}]/g, '').split(".")[0];
 						let valueKey = placeholder.replace(/[{}]/g, '').split(".")[1];
+						let value;
 						let attr = attributes.find(a => a.attribute == key);
-					
+
 						// Replace placeholders where it matches attributes
 						if(attr){
-							let value;
 							if(Object.hasOwn(optionSetCollection, attr.attribute)) {
 								const option = optionSetCollection[attr.attribute]?.find(opt => opt.code === attr.value);
 								const name = option ? option.name : null;
-								
+
 								if(!valueKey || valueKey == 'value'){
 									value = name;
 								}else{
@@ -104,144 +134,138 @@ async function loadDataInCard() {
 								if(valueKey == 'occurredAt' || valueKey == 'enrolledAt'){
 									value = enrollmentData[valueKey];
 								}else{
-									value = attr[valueKey];	
+									value = attr[valueKey];
 								}
 							}
-							
+
 							if(isDate(value)){
 								console.log('Value is date: ' + value);
 								value = new Date(value).toISOString().split('T')[0];
-								value = AD2BS(value);
+								value = NepaliFunctions.AD2BS(value, "YYYY-MM-DD");
 							}
-							
-							if(value && value != undefined)
+
+							if(value && value != undefined){
 								console.log(placeholder + " => " + value);
+								resolvedPlaceholders.add(placeholder);
 								htmlBody = htmlBody.replaceAll(placeholder, value);
-						}
-						
-						// Replace placeholders where it matches event/dataValues
-						if(events){
-							const date = new Date();
-							const formattedDate = date.toISOString().split('T')[0]; 
-							console.log(formattedDate);
-							// Check for events
-							let filteredEvents;
-							if(section.programStage){
-								filteredEvents = events.filter(ev => ev.programStage == section.programStage && ev.occurredAt.substring(0, 10) === formattedDate);
-							}else{
-								filteredEvents = events.filter(ev => ev.occurredAt.substring(0, 10) === formattedDate);
 							}
-							console.log(filteredEvents);
-							
-							filteredEvents.forEach(event => {
-								let value;
-								
-								if(key === "event"){
-									if(!valueKey){
-										value = event["status"];
-									}else{
-										value = event[valueKey];
-									}
-								}else{
-									//filter datavalues with dataElement ID
-									let dataValue = event.dataValues.find(dv => dv.dataElement == key);
-									if(dataValue){
-										// Check if dataElement key exists in optionSetCollection
-										if(Object.hasOwn(optionSetCollection, dataValue.dataElement)) {
-											const option = optionSetCollection[dataValue.dataElement]?.find(opt => opt.code === dataValue.value);
-											const name = option ? option.name : null;
-											if(!valueKey || valueKey == 'value'){
-												value = name;
-											}else{
-												value = dataValue[valueKey];
-											}
+						}
+
+						// Replace placeholders where it matches event/dataValues
+						const filteredEvents = getFilteredEvents(section, 'history');
+						
+						filteredEvents.forEach(event => {
+							let eventValue;
+
+							if(key === "event"){
+								eventValue = !valueKey ? event["status"] : event[valueKey];
+							}else{
+								// filter datavalues with dataElement ID
+								let dataValue = event.dataValues.find(dv => dv.dataElement == key);
+								if(dataValue){
+									// Check if dataElement key exists in optionSetCollection
+									if(Object.hasOwn(optionSetCollection, dataValue.dataElement)) {
+										const option = optionSetCollection[dataValue.dataElement]?.find(opt => opt.code === dataValue.value);
+										const name = option ? option.name : null;
+										if(!valueKey || valueKey == 'value'){
+											eventValue = name;
 										}else{
-											if (!valueKey){
-												valueKey = 'value';
-											}
-											if(valueKey == 'occurredAt' || valueKey == 'enrolledAt'){
-												value = event[valueKey];
-											}else{
-												value = dataValue[valueKey];	
-											}
+											eventValue = dataValue[valueKey];
+										}
+									}else{
+										let dvKey = valueKey || 'value';
+										if(dvKey == 'occurredAt' || dvKey == 'enrolledAt'){
+											eventValue = event[dvKey];
+										}else{
+											eventValue = dataValue[dvKey];
 										}
 									}
 								}
-								if(isDate(value)){
-									value = new Date(value).toISOString().split('T')[0];
-									console.log(AD2BS(value));
-									value = AD2BS(value);
-								}
-								if(value)
-									htmlBody = htmlBody.replaceAll(placeholder, value);
-							});
-						}
-						
-						// Replace placeholders where it matches user info
-						if(Object.keys(me).length != 0){
-							value = me[key];
-							//console.log(placeholder); console.log(key); console.log(value);
-							if(value)
+							}
+							if(isDate(eventValue)){
+								eventValue = new Date(eventValue).toISOString().split('T')[0];
+								eventValue = NepaliFunctions.AD2BS(eventValue, "YYYY-MM-DD");
+							}
+							if(eventValue){
+								resolvedPlaceholders.add(placeholder);
+								htmlBody = htmlBody.replaceAll(placeholder, eventValue);
+							}
+						});
+
+						// Replace {me.xxx} / {provider.xxx} placeholders with logged-in user info
+						if(key === 'me' || key === 'provider'){
+							const meKey = valueKey || 'username';
+							value = me[meKey];
+							if(value){
+								console.log(placeholder + " => " + value);
+								resolvedPlaceholders.add(placeholder);
 								htmlBody = htmlBody.replaceAll(placeholder, value);
+							}
 						}
-						
-						// Replace Organisation Unit placeholders
-						if (!valueKey){
-							valueKey = 'displayName';
+
+						// Legacy support: bare placeholders matching a top-level me.json field directly,
+						// e.g. {firstName} instead of {me.firstName}
+						if(Object.keys(me).length != 0 && key !== 'me' && key !== 'provider'){
+							value = me[key];
+							if(value){
+								htmlBody = htmlBody.replaceAll(placeholder, value);
+								resolvedPlaceholders.add(placeholder);
+							}
 						}
-						
+
+						// Replace Organisation Unit placeholders (kept in its own variables so it
+						// can't be contaminated by valueKey/value mutations from the blocks above)
+						let ouValueKey = valueKey || 'displayName';
+						let ouValue;
 						if(key === 'ou6'){
-							value = orgUnit[valueKey];
+							ouValue = orgUnit[ouValueKey];
 						}else if(key === 'ou5'){
-							value = orgUnit.parent[valueKey];
+							ouValue = orgUnit.parent[ouValueKey];
 						}else if(key === 'ou4'){
-							value = orgUnit.parent.parent[valueKey];
+							ouValue = orgUnit.parent.parent[ouValueKey];
 						}else if (key === 'ou3'){
-							value = orgUnit.parent.parent.parent[valueKey];
+							ouValue = orgUnit.parent.parent.parent[ouValueKey];
 						}else if(key === 'ou2'){
-							value = orgUnit.parent.parent.parent.parent[valueKey];
+							ouValue = orgUnit.parent.parent.parent.parent[ouValueKey];
 						}
-						if(value && value != undefined){
-							console.log(placeholder + " => " + value);
-							htmlBody = htmlBody.replaceAll(placeholder, value);
+						if(ouValue && ouValue != undefined){
+							console.log(placeholder + " => " + ouValue);
+							resolvedPlaceholders.add(placeholder);
+							htmlBody = htmlBody.replaceAll(placeholder, ouValue);
 						}
 					});
-					
-					cardHtmlString += htmlHeader + htmlBody + htmlFooter;	
-					
+
+					cardHtmlString += htmlHeader + htmlBody + htmlFooter;
+
 				}
-				
+
 				if (section.type == 'repeatable'){
 					var fullHtml = "";
-					let filteredEvents;
-					if(section.programStage){
-						filteredEvents = events.filter(ev => ev.programStage == section.programStage);
-					}else{
-						filteredEvents = events;
-					}
-					
+					const filteredEvents = getFilteredEvents(section, 'history');
+
 					filteredEvents.forEach(event => {
 						const completeHtmlBody = section.htmlBody;
 
 						// Strip off the table tags from the htmlBody
 						var htmlBody = completeHtmlBody.replace(/^\s*<table[^>]*>\s*<tbody>/, '').replace(/<\/tbody>\s*<\/table>\s*$/, '');
 						console.log(htmlBody);
-						
+
 						const regex = /\{.+?\}/g;
-						const valuePlaceholders = htmlBody.match(regex);
-						
+						const valuePlaceholders = htmlBody.match(regex) || [];
+
 						valuePlaceholders.forEach(placeholder => {
 							console.log(placeholder);
 							let key = placeholder.replace(/[{}]/g, '').split(".")[0];
 							let valueKey = placeholder.replace(/[{}]/g, '').split(".")[1];
+							let value;
 							if(key === "event"){
-								if(!valueKey) value = event["status"];
-								else value = event[valueKey];
+								value = !valueKey ? event["status"] : event[valueKey];
+								resolvedPlaceholders.add(placeholder);
 								htmlBody = htmlBody.replaceAll(placeholder, value);
 							} else {
-								//filter datavalues with dataElement ID
+								// filter datavalues with dataElement ID
 								let dataValue = event.dataValues.find(dv => dv.dataElement == key);
-								
+
 								if(dataValue){
 									// Check if dataElement key exists in optionSetCollection
 									if(Object.hasOwn(optionSetCollection, dataValue.dataElement)) {
@@ -252,26 +276,25 @@ async function loadDataInCard() {
 										}else{
 											value = dataValue[valueKey];
 										}
-										
+
 										if(isDate(value)){
 											value = new Date(value).toISOString().split('T')[0];
-											// Perform date conversion here
+											value = NepaliFunctions.AD2BS(value, "YYYY-MM-DD");
 										}
-											
+
+										resolvedPlaceholders.add(placeholder);
 										htmlBody = htmlBody.replaceAll(placeholder, value);
 									}else{
-										if(!valueKey){
-											valueKey = 'value';
-										}
-										value = dataValue[valueKey];
-										
+										let dvKey = valueKey || 'value';
+										value = dataValue[dvKey];
+
 										if(isDate(value)){
 											value = new Date(value).toISOString().split('T')[0];
-											console.log(AD2BS(value));
-											value = AD2BS(value);
+											value = NepaliFunctions.AD2BS(value, "YYYY-MM-DD");
 										}
+										resolvedPlaceholders.add(placeholder);
 										htmlBody = htmlBody.replaceAll(placeholder, value);
-									}							
+									}
 								}else{
 									htmlBody = htmlBody.replaceAll(placeholder, 'NA');
 								}
@@ -279,24 +302,34 @@ async function loadDataInCard() {
 						});
 						fullHtml += htmlBody;
 					});
-					cardHtmlString += htmlHeader + fullHtml + htmlFooter;							
+					cardHtmlString += htmlHeader + fullHtml + htmlFooter;
 				}
-				
+
 				if(section.type != 'repeatable' && section.type != 'single'){
 					console.log("Section type is not valid");
 				}
 			});
-			
+
+			// Resolve [[suffix:key.valueKey:suffix text]] markers embedded in card templates.
+			// Type these directly as plain text in the Card Designer, same way {key.attr}
+			// tokens are typed. The suffix text is kept only if its associated placeholder
+			// (e.g. "ANC1.value" for {ANC1.value}) actually resolved to a value somewhere above;
+			// otherwise it's dropped along with the (now-empty) placeholder.
+			const suffixRegex = /\[\[suffix:([^:\]]+):(.*?)\]\]/g;
+			cardHtmlString = cardHtmlString.replace(suffixRegex, (match, key, text) => {
+				return resolvedPlaceholders.has('{' + key + '}') ? text : '';
+			});
+
 			// clean placeholders that were not replaced with real values
-			const placeholdersToClean = cardHtmlString.match(regex)|| [];
+			const placeholdersToClean = cardHtmlString.match(regex) || [];
 			placeholdersToClean.forEach(placeholder => {
 				cardHtmlString = cardHtmlString.replaceAll(placeholder, '');
 			});
-			
+
 			parentElement.innerHTML = cardHtmlString;
 			// load QR if required
 			loadQR();
-		});								
+		});
     } catch (e) {
         console.log('Error: ' + e.message);
         console.error(e);
@@ -304,7 +337,7 @@ async function loadDataInCard() {
 }
 
 async function getOuInfo(ouId){
-	
+
 }
 
 async function loadQR(){
@@ -323,11 +356,6 @@ async function fetchJSON(url) {
 }
 
 function isDate(value){
-	//console.log(/^\d{4}-\d{2}-\d{2}$/.test(value) && !isNaN(new Date(value).getTime()));
 	value = (value)?value.substring(0,10):'';
 	return /^\d{4}-\d{2}-\d{2}$/.test(value) && !isNaN(new Date(value).getTime());
 }
-
-
-
-		
