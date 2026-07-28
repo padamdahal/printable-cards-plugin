@@ -28,9 +28,9 @@ jobs:
 
       - name: Deploy to DHIS2
         env:
-          DHIS2_URL: ${{ secrets.DHIS2_URL }}
-          DHIS2_USER: ${{ secrets.DHIS2_USER }}
-          DHIS2_PASS: ${{ secrets.DHIS2_PASS }}
+          DHIS2_URL: ${{ secrets.INSTANCE_URL }}
+          DHIS2_USER: ${{ secrets.USER }}
+          DHIS2_PASS: ${{ secrets.PASS }}
         run: |
           curl -f -u "$DHIS2_USER:$DHIS2_PASS" \
             -X POST "$DHIS2_URL/api/apps" \
