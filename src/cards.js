@@ -10,6 +10,7 @@ const programId = params.get("programId");
 const orgUnitId = params.get("orgUnitId");
 const cardId = params.get("cardId");
 const eventId = params.get("eventId");
+let systemId = null;
 
 window.onload = function () {
 	loadDataInCard();
@@ -25,7 +26,8 @@ async function loadDataInCard() {
 		// Split attributes and events
 		const events = enrollmentData.events;
 		const attributes = enrollmentData.attributes;
-
+		systemId = enrollmentData.attributes.find((a) => a.attribute == 'q3NpuWzGvso').value;
+		
 		// If an explicit eventId is present in the querystring, fetch that single event.
 		// When set, it overrides the "today's events" / "full history" logic below and
 		// every section resolves its event placeholders against this one event only.
@@ -41,7 +43,9 @@ async function loadDataInCard() {
 			"../../../api/me.json?fields=username,firstName,surname,phoneNumber,email,jobTitle,organisationUnits[id,name,shortName,displayName]";
 		const me = await fetchJSON(meUrl);
 
-		const ouUrl = "../../../api/organisationUnits/" + orgUnitId +
+		const ouUrl =
+			"../../../api/organisationUnits/" +
+			orgUnitId +
 			"?fields=id,name,displayName,code,parent[id,name,displayName,code,parent[id,name,displayName,code,parent[id,name,displayName,code,parent[id,name,displayName,code]]]]";
 		const orgUnit = await fetchJSON(ouUrl);
 		var optionSetCollection = {};
@@ -50,7 +54,9 @@ async function loadDataInCard() {
 		const parentElement = document.getElementById("card");
 
 		console.log("Getting card config");
-		const cardConfig = await fetchJSON("../../../api/dataStore/cardDesigner/" + cardId);
+		const cardConfig = await fetchJSON(
+			"../../../api/dataStore/cardDesigner/" + cardId,
+		);
 		const cardToRender = cardConfig;
 
 		// if cardConfig has path
@@ -87,7 +93,7 @@ async function loadDataInCard() {
 		Promise.all(promises).then(() => {
 			console.log("Preparing card: " + cardToRender.name);
 			var cardSections = cardToRender.sections;
-
+			
 			var cardHtmlString = "";
 			const regex = /\{.+?\}/g;
 
@@ -102,32 +108,24 @@ async function loadDataInCard() {
 			function getFilteredEvents(section, mode) {
 				if (explicitEvent) return [explicitEvent];
 				if (!events) return [];
+				
 				if (mode === "today") {
 					const formattedDate = new Date().toISOString().split("T")[0];
 					return events.filter(
-						(ev) =>
-							(!section.programStage ||
-								ev.programStage == section.programStage) &&
-							ev.occurredAt.substring(0, 10) === formattedDate,
+						(ev) => (!section.programStage || ev.programStage == section.programStage) && ev.occurredAt.substring(0, 10) === formattedDate,
 					);
 				}
-				return section.programStage
-					? events.filter((ev) => ev.programStage == section.programStage)
-					: events;
+				
+				return section.programStage ? events.filter((ev) => ev.programStage == section.programStage) : events;
 			}
 
 			cardSections.forEach((section) => {
 				console.log("Processing card section.");
 				var roughHtmlHeader = section.htmlHeader;
-				const htmlHeader =
-					roughHtmlHeader != undefined
-						? roughHtmlHeader.replace(/<\/tbody>\s*<\/table>\s*$/, "")
-						: "";
+				const htmlHeader = roughHtmlHeader != undefined ? roughHtmlHeader.replace(/<\/tbody>\s*<\/table>\s*$/, "") : "";
 
 				var roughHtmlFooter = section.htmlFooter;
-				const htmlFooter = roughHtmlFooter
-					? roughHtmlFooter.replace(/^\s*<table[^>]*>\s*<tbody>/, "")
-					: "";
+				const htmlFooter = roughHtmlFooter ? roughHtmlFooter.replace(/^\s*<table[^>]*>\s*<tbody>/, "") : "";
 
 				if (section.type == "single") {
 					var htmlBody = section.htmlBody;
@@ -164,9 +162,7 @@ async function loadDataInCard() {
 							}
 
 							if (isDate(value)) {
-								console.log("Value is date: " + value);
-								value = new Date(value).toISOString().split("T")[0];
-								value = NepaliFunctions.AD2BS(value, "YYYY-MM-DD");
+								value = NepaliFunctions.AD2BS(value.split("T")[0], "YYYY-MM-DD") + " (" + value.split("T")[0] + ")";
 							}
 
 							if (value && value != undefined) {
@@ -177,23 +173,22 @@ async function loadDataInCard() {
 						}
 
 						// Replace placeholders where it matches event/dataValues
-						const filteredEvents = getFilteredEvents(section, "history");
+						const mode = section.mode ? section.mode : "history";
+						const filteredEvents = getFilteredEvents(section, mode);
 
 						filteredEvents.forEach((event) => {
+							
 							let eventValue;
 
 							if (key === "event") {
 								eventValue = !valueKey ? event["status"] : event[valueKey];
 							} else {
 								// filter datavalues with dataElement ID
-								let dataValue = event.dataValues.find(
-									(dv) => dv.dataElement == key,
-								);
+								let dataValue = event.dataValues.find((dv) => dv.dataElement == key);
+								
 								if (dataValue) {
 									// Check if dataElement key exists in optionSetCollection
-									if (
-										Object.hasOwn(optionSetCollection, dataValue.dataElement)
-									) {
+									if (Object.hasOwn(optionSetCollection, dataValue.dataElement)) {
 										const option = optionSetCollection[dataValue.dataElement]?.find((opt) => opt.code === dataValue.value);
 										const name = option ? option.name : null;
 										if (!valueKey || valueKey == "value") {
@@ -211,13 +206,14 @@ async function loadDataInCard() {
 									}
 								}
 							}
+							
 							if (isDate(eventValue)) {
-								eventValue = new Date(eventValue).toISOString().split("T")[0];
-								eventValue = NepaliFunctions.AD2BS(eventValue, "YYYY-MM-DD");
+								eventValue = NepaliFunctions.AD2BS(eventValue.split("T")[0], "YYYY-MM-DD") + " (" + eventValue.split("T")[0] + ")";
 							}
+							
 							if (eventValue) {
 								resolvedPlaceholders.add(placeholder);
-								console.log(placeholder + " => " + value);
+								console.log(placeholder + " => " + eventValue);
 								htmlBody = htmlBody.replaceAll(placeholder, eventValue);
 							}
 						});
@@ -235,11 +231,7 @@ async function loadDataInCard() {
 
 						// Legacy support: bare placeholders matching a top-level me.json field directly,
 						// e.g. {firstName} instead of {me.firstName}
-						if (
-							Object.keys(me).length != 0 &&
-							key !== "me" &&
-							key !== "provider"
-						) {
+						if (Object.keys(me).length != 0 && key !== "me" && key !== "provider") {
 							value = me[key];
 							if (value) {
 								htmlBody = htmlBody.replaceAll(placeholder, value);
@@ -283,13 +275,13 @@ async function loadDataInCard() {
 						var htmlBody = completeHtmlBody
 							.replace(/^\s*<table[^>]*>\s*<tbody>/, "")
 							.replace(/<\/tbody>\s*<\/table>\s*$/, "");
-						console.log(htmlBody);
+						//console.log(htmlBody);
 
 						const regex = /\{.+?\}/g;
 						const valuePlaceholders = htmlBody.match(regex) || [];
 
 						valuePlaceholders.forEach((placeholder) => {
-							console.log(placeholder);
+							//console.log(placeholder);
 							let key = placeholder.replace(/[{}]/g, "").split(".")[0];
 							let valueKey = placeholder.replace(/[{}]/g, "").split(".")[1];
 							let value;
@@ -299,18 +291,12 @@ async function loadDataInCard() {
 								htmlBody = htmlBody.replaceAll(placeholder, value);
 							} else {
 								// filter datavalues with dataElement ID
-								let dataValue = event.dataValues.find(
-									(dv) => dv.dataElement == key,
-								);
+								let dataValue = event.dataValues.find((dv) => dv.dataElement == key,);
 
 								if (dataValue) {
 									// Check if dataElement key exists in optionSetCollection
-									if (
-										Object.hasOwn(optionSetCollection, dataValue.dataElement)
-									) {
-										const option = optionSetCollection[
-											dataValue.dataElement
-										]?.find((opt) => opt.code === dataValue.value);
+									if (Object.hasOwn(optionSetCollection, dataValue.dataElement)) {
+										const option = optionSetCollection[dataValue.dataElement]?.find((opt) => opt.code === dataValue.value);
 										const name = option ? option.name : null;
 										if (!valueKey || valueKey == "value") {
 											value = name;
@@ -319,8 +305,7 @@ async function loadDataInCard() {
 										}
 
 										if (isDate(value)) {
-											value = new Date(value).toISOString().split("T")[0];
-											value = NepaliFunctions.AD2BS(value, "YYYY-MM-DD");
+											value = NepaliFunctions.AD2BS(value.split("T")[0], "YYYY-MM-DD") + " (" + value.split("T")[0] + ")";
 										}
 
 										resolvedPlaceholders.add(placeholder);
@@ -330,9 +315,9 @@ async function loadDataInCard() {
 										value = dataValue[dvKey];
 
 										if (isDate(value)) {
-											value = new Date(value).toISOString().split("T")[0];
-											value = NepaliFunctions.AD2BS(value, "YYYY-MM-DD");
+											value = NepaliFunctions.AD2BS(value.split("T")[0], "YYYY-MM-DD") + " (" + value.split("T")[0] + ")";
 										}
+										
 										resolvedPlaceholders.add(placeholder);
 										htmlBody = htmlBody.replaceAll(placeholder, value);
 									}
@@ -383,11 +368,10 @@ async function loadDataInCard() {
 async function getOuInfo(ouId) {}
 
 async function loadQR() {
-	const healthId = document.getElementById("healthId").innerText;
 	new QRCode(document.getElementById("qrcode"), {
-		text: healthId,
-		width: 100,
-		height: 100,
+		text: systemId,
+		width: 65,
+		height: 65,
 	});
 }
 
