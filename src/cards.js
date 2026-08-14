@@ -349,19 +349,17 @@ async function loadDataInCard() {
 			);
 
 			// Growthchart
-			console.log(attributes.find((a) => a.attribute == 'RzyHxE71iyC').value);
-			console.log(attributes.find((a) => a.attribute == 'i607dSgfm4F').value);
 			var svg = GrowthChart.renderFromEvents({
-				sex: attributes.find((a) => a.attribute == 'RzyHxE71iyC').value, // wherever you already derive this
-				dob: attributes.find((a) => a.attribute == 'i607dSgfm4F').value, // same
-				events: events,              // the events array you already have
+				sex: attributes.find((a) => a.attribute == 'RzyHxE71iyC').value,
+				dob: attributes.find((a) => a.attribute == 'i607dSgfm4F').value,
+				events: events,
 				weightDeUid: 'J6QgfoUf5my'
 			});
-
 			cardHtmlString = GrowthChart.injectPlaceholder(cardHtmlString, '{growthChart}', svg);
 
 			// load QR if required
-			loadQR();
+			var qrCode = QRCodeHelper.renderFromClientId(systemId);
+			cardHtmlString = QRCodeHelper.injectPlaceholder(cardHtmlString, '{QRCode}',	qrCode);
 
 			// clean placeholders that were not replaced with real values
 			const placeholdersToClean = cardHtmlString.match(regex) || [];
@@ -380,13 +378,56 @@ async function loadDataInCard() {
 
 async function getOuInfo(ouId) {}
 
-async function loadQR() {
+/*async function loadQR() {
 	new QRCode(document.getElementById("qrcode"), {
 		text: systemId,
 		width: 65,
 		height: 65,
 	});
-}
+}*/
+
+var QRCodeHelper = {
+		renderFromClientId: function (clientId) {
+				if (!clientId) {
+						return '';
+				}
+
+				var container = document.createElement('div');
+
+				new QRCode(container, {
+						text: String(clientId),
+						width: 65,
+						height: 65,
+						correctLevel: QRCode.CorrectLevel.M
+				});
+
+				var canvas = container.querySelector('canvas');
+
+				if (canvas) {
+						return '<img src="' + canvas.toDataURL('image/png') +
+									 '" width="150" height="150">';
+				}
+
+				var img = container.querySelector('img');
+
+				if (img) {
+						return '<img src="' + img.src +
+									 '" width="150" height="150">';
+				}
+
+				return '';
+		},
+
+		injectPlaceholder: function (html, placeholder, content) {
+				return html.replace(
+						new RegExp(
+								placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+								'g'
+						),
+						content || ''
+				);
+		}
+};
 
 async function fetchJSON(url) {
 	const res = await fetch(url);
