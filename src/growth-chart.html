@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ne">
+<head>
+<meta charset="UTF-8" />
+<title>बच्चाको बृद्धि अनुगमन चार्ट</title>
+</head>
+<body style="margin:0; padding:16px; font-family:'Kalimati','Noto Sans Devanagari',Arial,sans-serif; background:linear-gradient(135deg,#e0f7f4,#ffffff);">
+
+<div style="max-width:820px; margin:0 auto; background:#fff; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.12); overflow:hidden;">
+
+  <div style="background:linear-gradient(135deg,#0f9b8e,#0c7a70); color:#fff; padding:14px 20px;">
+    <div style="font-size:18px; font-weight:bold;">बच्चाको बृद्धि अनुगमन चार्ट</div>
+    <div id="childMeta" style="font-size:12px; opacity:0.9; margin-top:4px;">लोड हुँदैछ...</div>
+  </div>
+
+  <div style="padding:16px 20px;">
+    <div id="chartHost" style="width:100%; overflow-x:auto;"></div>
+
+    <div style="display:flex; gap:18px; flex-wrap:wrap; margin-top:10px; font-size:12px;">
+      <span><span style="display:inline-block;width:12px;height:12px;background:#dc3545;border-radius:2px;margin-right:5px;"></span>अति जोखिम</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#f2c94c;border-radius:2px;margin-right:5px;"></span>जोखिम</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#6fbf73;border-radius:2px;margin-right:5px;"></span>राम्रो</span>
+    </div>
+
+    <div id="errorBox" style="display:none; margin-top:10px; padding:8px 10px; background:#fdecea; color:#a33; border-radius:6px; font-size:12px;"></div>
+
+    <div style="margin-top:12px; font-size:11px; color:#888; border-top:1px solid #eee; padding-top:8px;">
+      ⚠️ यो चार्टका zone boundaries अनुमानित मान हुन्। वास्तविक क्लिनिकल प्रयोगका लागि आधिकारिक WHO Growth Standards LMS डाटा प्रयोग गर्नुहोला।
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   CONFIG — map this to your DHIS2 instance's actual UIDs before deploying.
+   Everything the chart needs (gender, date of birth, weight, height) comes
+   from these attribute / data element IDs. Replace the placeholders below.
+   ========================================================================= */
+const CONFIG = {
+  // Leave empty if this file is served from within the DHIS2 app shell
+  // (same origin as the API). Otherwise set the full server URL, e.g.
+  // 'https://dhis2.mohp.gov.np'
+  apiBaseUrl: '',
+
+  // --- Tracked Entity Attribute UIDs (from Maintenance > Program > Attributes) ---
+  genderAttributeId: 'REPLACE_gender_TEA_UID',
+  dobAttributeId:    'REPLACE_dateOfBirth_TEA_UID',
+  nameAttributeIds:  ['REPLACE_firstName_TEA_UID', 'REPLACE_lastName_TEA_UID'], // optional, display only
+
+  // How gender option values map to m/f for picking the right reference bands.
+  // Adjust the left-hand raw values to match your option set's codes/names.
+  genderValueMap: {
+    'Male': 'm', 'M': 'm', '1': 'm',
+    'Female': 'f', 'F': 'f', '2': 'f'
+  },
+
+  // --- Data Element UIDs (from the growth-monitoring program stage) ---
+  weightDataElementId: 'REPLACE_weight_DE_UID',
+  heightDataElementId: 'REPLACE_height_DE_UID', // fetched but not plotted yet
+
+  // Optional: restrict events to one program stage UID. Leave '' to fetch
+  // all events in the enrollment.
+  programStageId: ''
+};
+/* ========================================================================= */
+
+const params = new URLSearchParams(window.location.search);
+const teiId = params.get('teiId');
+const enrollmentId = params.get('enrollmentId');
+const programId = params.get('programId');
+const orgUnitId = params.get('orgUnitId');
+
+const metaEl = document.getElementById('childMeta');
+const errorEl = document.getElementById('errorBox');
+
+function showError(msg) {
+  errorEl.style.display = 'block';
+  errorEl.textContent = msg;
+}
+
+function apiUrl(path) {
+  return (CONFIG.apiBaseUrl || '') + path;
+}
+
+async function fetchJson(path) {
+  const res = await fetch(apiUrl(path), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+  if (!res.ok) throw new Error(path + ' → HTTP ' + res.status);
+  return res.json();
+}
+
+function monthsBetween(dobStr, eventDateStr) {
+  const dob = new Date(dobStr), ev = new Date(eventDateStr);
+  return (ev - dob) / (1000 * 60 * 60 * 24 * 30.4375);
+}
+
+async function loadChildData() {
+  if (!teiId) { showError('teiId query param छैन।'); return; }
+
+  // 1. Tracked entity attributes → gender, DOB, name
+  const tei = await fetchJson(`/api/trackedEntityInstances/${teiId}.json?fields=attributes[attribute,value]`);
+  const attrMap = {};
+  (tei.attributes || []).forEach(a => { attrMap[a.attribute] = a.value; });
+
+  const rawGender = attrMap[CONFIG.genderAttributeId];
+  const sex = CONFIG.genderValueMap[rawGender] || 'm';
+  const dob = attrMap[CONFIG.dobAttributeId];
+  const name = CONFIG.nameAttributeIds.map(id => attrMap[id]).filter(Boolean).join(' ');
+
+  if (!dob) showError('जन्म मिति (DOB) फेला परेन — CONFIG.dobAttributeId जाँच्नुहोस्।');
+
+  // 2. Events within this enrollment → weight over time
+  let eventsUrl = `/api/events.json?fields=eventDate,dataValues[dataElement,value]&order=eventDate:asc`;
+  if (enrollmentId) eventsUrl += `&enrollment=${enrollmentId}`;
+  if (programId) eventsUrl += `&program=${programId}`;
+  if (orgUnitId) eventsUrl += `&orgUnit=${orgUnitId}`;
+  if (CONFIG.programStageId) eventsUrl += `&programStage=${CONFIG.programStageId}`;
+
+  const eventsResp = await fetchJson(eventsUrl);
+  const events = eventsResp.events || [];
+
+  const points = [];
+  events.forEach(ev => {
+    const dv = (ev.dataValues || []).find(d => d.dataElement === CONFIG.weightDataElementId);
+    if (dv && dob) {
+      points.push({ age: monthsBetween(dob, ev.eventDate), weight: parseFloat(dv.value) });
+    }
+  });
+  points.sort((a, b) => a.age - b.age);
+
+  metaEl.textContent =
+    (name ? 'नाम: ' + name + '  |  ' : '') +
+    'लिङ्ग: ' + (sex === 'f' ? 'बालिका' : 'बालक') +
+    '  |  रेकोर्ड गरिएका मापन: ' + points.length;
+
+  renderChart(sex, points);
+}
+
+// ---------- Reference bands (illustrative WHO-style weight-for-age, kg) ----------
+const ages = [0, 1, 2, 3, 4, 5, 6, 9, 12, 15, 18, 21, 24];
+const REF = {
+  m: {
+    median: [3.3, 4.5, 5.6, 6.4, 7.0, 7.5, 7.9, 8.9, 9.6, 10.3, 10.9, 11.5, 12.2],
+    sd2:    [2.5, 3.4, 4.3, 5.0, 5.6, 6.0, 6.4, 7.1, 7.7, 8.3, 8.8, 9.2, 9.7],
+    sd3:    [2.1, 2.9, 3.8, 4.4, 4.9, 5.3, 5.7, 6.2, 6.9, 7.4, 7.8, 8.2, 8.6]
+  },
+  f: {
+    median: [3.2, 4.2, 5.1, 5.8, 6.4, 6.9, 7.3, 8.2, 8.9, 9.6, 10.2, 10.9, 11.5],
+    sd2:    [2.4, 3.2, 3.9, 4.5, 5.0, 5.4, 5.7, 6.3, 6.9, 7.5, 7.9, 8.3, 8.7],
+    sd3:    [2.0, 2.7, 3.4, 3.9, 4.4, 4.8, 5.1, 5.6, 6.1, 6.6, 6.9, 7.3, 7.6]
+  }
+};
+
+function interp(arr, x) {
+  if (x <= ages[0]) return arr[0];
+  if (x >= ages[ages.length - 1]) return arr[arr.length - 1];
+  for (let i = 0; i < ages.length - 1; i++) {
+    if (x >= ages[i] && x <= ages[i + 1]) {
+      const t = (x - ages[i]) / (ages[i + 1] - ages[i]);
+      return arr[i] + t * (arr[i + 1] - arr[i]);
+    }
+  }
+}
+
+function renderChart(sex, points) {
+  const ref = REF[sex === 'f' ? 'f' : 'm'];
+  const W = 740, H = 420, ML = 55, MR = 20, MT = 20, MB = 40;
+  const plotW = W - ML - MR, plotH = H - MT - MB;
+  const xMax = 24, yMax = 16;
+  const X = age => ML + (Math.max(0, Math.min(age, xMax)) / xMax) * plotW;
+  const Y = weight => MT + plotH - (weight / yMax) * plotH;
+
+  function pathFor(arr) {
+    return ages.map((a, i) => (i === 0 ? 'M' : 'L') + X(a) + ',' + Y(arr[i])).join(' ');
+  }
+  function areaBetween(lowerArr, upperArr) {
+    const top = ages.map((a, i) => X(a) + ',' + Y(upperArr[i])).join(' L');
+    const bottomRev = ages.slice().reverse().map((a, i) => {
+      const idx = ages.length - 1 - i;
+      return X(a) + ',' + Y(lowerArr[idx]);
+    }).join(' L');
+    return 'M' + top + ' L' + bottomRev + ' Z';
+  }
+  const zeroLine = ages.map(() => 0);
+  const topLine = ages.map(() => yMax);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%; max-width:${W}px;">`;
+  svg += `<path d="${areaBetween(zeroLine, ref.sd3)}" fill="#f5b3ba"></path>`;
+  svg += `<path d="${areaBetween(ref.sd3, ref.sd2)}" fill="#f6e2a0"></path>`;
+  svg += `<path d="${areaBetween(ref.sd2, topLine)}" fill="#c9e8c4"></path>`;
+  svg += `<path d="${pathFor(ref.median)}" fill="none" stroke="#0c7a70" stroke-width="1.5" stroke-dasharray="4,3"></path>`;
+
+  svg += `<line x1="${ML}" y1="${MT}" x2="${ML}" y2="${MT+plotH}" stroke="#333"></line>`;
+  svg += `<line x1="${ML}" y1="${MT+plotH}" x2="${ML+plotW}" y2="${MT+plotH}" stroke="#333"></line>`;
+
+  for (let a = 0; a <= xMax; a += 2) {
+    svg += `<line x1="${X(a)}" y1="${MT+plotH}" x2="${X(a)}" y2="${MT+plotH+4}" stroke="#333"></line>`;
+    svg += `<text x="${X(a)}" y="${MT+plotH+16}" font-size="9" text-anchor="middle" fill="#333">${a}</text>`;
+  }
+  svg += `<text x="${ML+plotW/2}" y="${H-4}" font-size="10" text-anchor="middle" fill="#333">उमेर (महिना)</text>`;
+
+  for (let w = 0; w <= yMax; w += 2) {
+    svg += `<line x1="${ML-4}" y1="${Y(w)}" x2="${ML}" y2="${Y(w)}" stroke="#333"></line>`;
+    svg += `<text x="${ML-8}" y="${Y(w)+3}" font-size="9" text-anchor="end" fill="#333">${w}</text>`;
+  }
+  svg += `<text x="14" y="${MT+plotH/2}" font-size="10" fill="#333" transform="rotate(-90 14 ${MT+plotH/2})" text-anchor="middle">तौल (के.जी.)</text>`;
+
+  if (points.length) {
+    const linePath = points.map((p, i) => (i === 0 ? 'M' : 'L') + X(p.age) + ',' + Y(p.weight)).join(' ');
+    svg += `<path d="${linePath}" fill="none" stroke="#1a1a1a" stroke-width="2"></path>`;
+    points.forEach(p => {
+      const sd2v = interp(ref.sd2, p.age), sd3v = interp(ref.sd3, p.age);
+      const color = p.weight < sd3v ? '#dc3545' : (p.weight < sd2v ? '#f2c94c' : '#2f9e44');
+      svg += `<circle cx="${X(p.age)}" cy="${Y(p.weight)}" r="4.5" fill="${color}" stroke="#1a1a1a" stroke-width="1"></circle>`;
+    });
+  } else {
+    svg += `<text x="${ML+plotW/2}" y="${MT+plotH/2}" font-size="12" text-anchor="middle" fill="#999">तौलको डाटा फेला परेन</text>`;
+  }
+  svg += `</svg>`;
+  document.getElementById('chartHost').innerHTML = svg;
+}
+
+loadChildData().catch(err => {
+  console.error(err);
+  showError('DHIS2 API बाट डाटा ल्याउँदा त्रुटि: ' + err.message);
+});
+</script>
+</body>
+</html>

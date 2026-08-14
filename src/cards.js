@@ -19,8 +19,7 @@ window.onload = function () {
 async function loadDataInCard() {
 	try {
 		// Gather enrollmentData
-		const url =
-			"../../../api/tracker/enrollments/" + enrollmentId + "?fields=*";
+		const url = "../../../api/tracker/enrollments/" + enrollmentId + "?fields=*";
 		const enrollmentData = await fetchJSON(url);
 
 		// Split attributes and events
@@ -349,15 +348,29 @@ async function loadDataInCard() {
 				},
 			);
 
+			// Growthchart
+			console.log(attributes.find((a) => a.attribute == 'RzyHxE71iyC').value);
+			console.log(attributes.find((a) => a.attribute == 'i607dSgfm4F').value);
+			var svg = GrowthChart.renderFromEvents({
+				sex: attributes.find((a) => a.attribute == 'RzyHxE71iyC').value, // wherever you already derive this
+				dob: attributes.find((a) => a.attribute == 'i607dSgfm4F').value, // same
+				events: events,              // the events array you already have
+				weightDeUid: 'J6QgfoUf5my'
+			});
+
+			cardHtmlString = GrowthChart.injectPlaceholder(cardHtmlString, '{growthChart}', svg);
+
+			// load QR if required
+			loadQR();
+
 			// clean placeholders that were not replaced with real values
 			const placeholdersToClean = cardHtmlString.match(regex) || [];
 			placeholdersToClean.forEach((placeholder) => {
 				cardHtmlString = cardHtmlString.replaceAll(placeholder, "");
 			});
-
+			
 			parentElement.innerHTML = cardHtmlString;
-			// load QR if required
-			loadQR();
+			
 		});
 	} catch (e) {
 		console.log("Error: " + e.message);
