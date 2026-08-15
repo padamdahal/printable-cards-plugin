@@ -405,14 +405,14 @@ var QRCodeHelper = {
 
 				if (canvas) {
 						return '<img src="' + canvas.toDataURL('image/png') +
-									 '" width="150" height="150">';
+									 '" width="65" height="65">';
 				}
 
 				var img = container.querySelector('img');
 
 				if (img) {
 						return '<img src="' + img.src +
-									 '" width="150" height="150">';
+									 '" width="65" height="65">';
 				}
 
 				return '';
