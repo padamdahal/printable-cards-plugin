@@ -31,47 +31,40 @@ async function loadDataInCard() {
 		// When set, it overrides the "today's events" / "full history" logic below and
 		// every section resolves its event placeholders against this one event only.
 		let explicitEvent = null;
+		
 		if (eventId) {
 			console.log("Explicit eventId supplied, fetching event: " + eventId);
-			const explicitEventUrl =
-				"../../../api/tracker/events/" + eventId + "?fields=*";
+			const explicitEventUrl = "../../../api/tracker/events/" + eventId + "?fields=*";
 			explicitEvent = await fetchJSON(explicitEventUrl);
 		}
 
-		const meUrl =
-			"../../../api/me.json?fields=username,firstName,surname,phoneNumber,email,jobTitle,organisationUnits[id,name,shortName,displayName]";
+		const meUrl = "../../../api/me.json?";
+		meUrl += "fields=username,firstName,surname,phoneNumber,email,jobTitle,";
+		meUrl += "organisationUnits[id,name,shortName,displayName]";
+		
 		const me = await fetchJSON(meUrl);
 
-		const ouUrl =
-			"../../../api/organisationUnits/" +
-			orgUnitId +
-			"?fields=id,name,displayName,code,parent[id,name,displayName,code,parent[id,name,displayName,code,parent[id,name,displayName,code,parent[id,name,displayName,code]]]]";
+		const ouUrl =	"../../../api/organisationUnits/";
+		ouUrl += orgUnitId;
+		ouUrl += "?fields=id,name,displayName,code,";
+		ouUrl += "parent[id,name,displayName,code,parent[id,name,displayName,code,parent[id,name,displayName,code,parent[id,name,displayName,code]]]]";
 		const orgUnit = await fetchJSON(ouUrl);
+		
 		var optionSetCollection = {};
 
 		// HTML element to render card inside
 		const parentElement = document.getElementById("card");
 
 		console.log("Getting card config");
-		const cardConfig = await fetchJSON(
-			"../../../api/dataStore/cardDesigner/" + cardId,
-		);
+		const cardConfig = await fetchJSON("../../../api/dataStore/cardDesigner/" + cardId);
 		const cardToRender = cardConfig;
 
 		// if cardConfig has path
 		if (cardToRender.path) {
-			window.location.replace(
-				"../../../api/apps/Patient-Cards/" +
-					cardToRender.path +
-					"?teiId=" +
-					teiId +
-					"&enrollmentId=" +
-					enrollmentId +
-					"&programId=" +
-					programId +
-					"&orgUnitId=" +
-					orgUnitId,
-			);
+			const url = "../../../api/apps/Patient-Cards/" + cardToRender.path;
+			url += "?teiId=" + teiId + "&enrollmentId=" + enrollmentId + "&programId=" + programId +	"&orgUnitId=" +	orgUnitId;
+			
+			window.location.replace(url);
 		}
 
 		console.log("Preparing optionSet collection");
@@ -80,8 +73,7 @@ async function loadDataInCard() {
 		const promises = Object.keys(optionSets).map((dataElementId) => {
 			const optionSetId = optionSets[dataElementId];
 			if (!optionSetId) return Promise.resolve();
-			const url =
-				"../../../api/optionSets/" + optionSetId + "?fields=options[code,name]";
+			const url = "../../../api/optionSets/" + optionSetId + "?fields=options[code,name]";
 			return fetch(url)
 				.then((res) => res.json())
 				.then((data) => {
@@ -114,7 +106,6 @@ async function loadDataInCard() {
 						(ev) => (!section.programStage || ev.programStage == section.programStage) && ev.occurredAt.substring(0, 10) === formattedDate,
 					);
 				}
-				
 				return section.programStage ? events.filter((ev) => ev.programStage == section.programStage) : events;
 			}
 
@@ -126,7 +117,7 @@ async function loadDataInCard() {
 				var roughHtmlFooter = section.htmlFooter;
 				const htmlFooter = roughHtmlFooter ? roughHtmlFooter.replace(/^\s*<table[^>]*>\s*<tbody>/, "") : "";
 
-				if (section.type == "single") {
+				//if (section.type == "single") {
 					var htmlBody = section.htmlBody;
 					const valuePlaceholders = htmlBody.match(regex) || [];
 
@@ -212,7 +203,7 @@ async function loadDataInCard() {
 							
 							if (eventValue) {
 								resolvedPlaceholders.add(placeholder);
-								console.log(placeholder + " => " + eventValue);
+								//console.log(placeholder + " => " + eventValue);
 								htmlBody = htmlBody.replaceAll(placeholder, eventValue);
 							}
 						});
@@ -261,8 +252,9 @@ async function loadDataInCard() {
 					});
 
 					cardHtmlString += htmlHeader + htmlBody + htmlFooter;
-				}
+				//}
 
+				/*
 				if (section.type == "repeatable") {
 					var fullHtml = "";
 					const filteredEvents = getFilteredEvents(section, "history");
@@ -328,22 +320,17 @@ async function loadDataInCard() {
 						fullHtml += htmlBody;
 					});
 					cardHtmlString += htmlHeader + fullHtml + htmlFooter;
-				}
+				}*/
 
-				if (section.type != "repeatable" && section.type != "single") {
+				/*if (section.type != "repeatable" && section.type != "single") {
 					console.log("Section type is not valid");
-				}
+				}*/
 			});
 
 			// Resolve [[suffix:key.valueKey:suffix text]] markers embedded in card templates.
-			// Type these directly as plain text in the Card Designer, same way {key.attr}
-			// tokens are typed. The suffix text is kept only if its associated placeholder
-			// (e.g. "ANC1.value" for {ANC1.value}) actually resolved to a value somewhere above;
-			// otherwise it's dropped along with the (now-empty) placeholder.
 			const suffixRegex = /\[\[suffix:([^:\]]+):(.*?)\]\]/g;
 			cardHtmlString = cardHtmlString.replace(
-				suffixRegex,
-				(match, key, text) => {
+				suffixRegex, (match, key, text) => {
 					return resolvedPlaceholders.has("{" + key + "}") ? text : "";
 				},
 			);
@@ -355,6 +342,7 @@ async function loadDataInCard() {
 				events: events,
 				weightDeUid: 'J6QgfoUf5my'
 			});
+			
 			cardHtmlString = GrowthChart.injectPlaceholder(cardHtmlString, '{growthChart}', svg);
 
 			// load QR if required
@@ -376,45 +364,27 @@ async function loadDataInCard() {
 	}
 }
 
-async function getOuInfo(ouId) {}
-
-/*async function loadQR() {
-	new QRCode(document.getElementById("qrcode"), {
-		text: systemId,
-		width: 65,
-		height: 65,
-	});
-}*/
-
 var QRCodeHelper = {
 		renderFromClientId: function (clientId) {
 				if (!clientId) {
 						return '';
 				}
-
 				var container = document.createElement('div');
-
 				new QRCode(container, {
 						text: String(clientId),
 						width: 65,
 						height: 65,
 						correctLevel: QRCode.CorrectLevel.M
 				});
-
 				var canvas = container.querySelector('canvas');
-
 				if (canvas) {
-						return '<img src="' + canvas.toDataURL('image/png') +
-									 '" width="65" height="65">';
+					return '<img src="' + canvas.toDataURL('image/png') + '" width="65" height="65">';
 				}
 
 				var img = container.querySelector('img');
-
 				if (img) {
-						return '<img src="' + img.src +
-									 '" width="65" height="65">';
+					return '<img src="' + img.src + '" width="65" height="65">';
 				}
-
 				return '';
 		},
 
