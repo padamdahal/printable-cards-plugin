@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<!--
+  Health ID integration module — ePHC / DHIS2
+
+  Single-file, no build step, session-cookie auth, relative API paths —
+  same convention as the rest of the ePHC app suite.
+
+  Exposes window.HealthId with one entry point:
+
+      HealthId.validateOrCreate(enrollmentId)
+          -> { status: 'already-linked' | 'created' | 'matched' | 'error',
+               healthId: string|null,
+               error: string|null,
+               raw: <fhir response> }
+
+  Drop the <script> block into your card plugin (or keep this file
+  standalone and load it as-is) and wire your button's onClick to
+  HealthId.validateOrCreate(enrollmentId). Button/UI state is handled
+  by the caller, not this module.
+
+  Config is loaded from the DHIS2 datastore (namespace: healthId,
+  key: config), matching the {toolName}/config convention used
+  elsewhere in ePHC. First-time setup:
+
+      1. Edit DEFAULT_CONFIG below with your real TEA/Route UIDs.
+      2. In the browser console on your DHIS2 instance, after loading
+         this script: HealthId.seedConfig()
+      3. From then on, edit the datastore entry directly (or call
+         seedConfig(yourUpdatedObject) again) — no redeploy needed.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Health ID integration (module)</title>
+</head>
+<body>
+<script>
+(function (global) {
+  'use strict';
+
+  // ---------------------------------------------------------------
+  // CONFIG is loaded from the DHIS2 datastore at namespace "healthId",
+  // key "config" — consistent with the {toolName}/config convention
+  // used elsewhere in ePHC (Card Designer, dashboards, etc.).
+  //
+  // DEFAULT_CONFIG below is only a seed template / offline fallback —
+  // it is never used to drive a real request. Use HealthId.seedConfig()
+  // once (see bottom of file) to write your real values into the
+  // datastore, then edit them there going forward rather than in code.
+  // ---------------------------------------------------------------
+  const DATASTORE = { namespace: 'healthId', key: 'config' };
+
+  const DEFAULT_CONFIG = {
+    // DHIS2 Route name/id that proxies the Health ID system.
+    // Calls go to /api/routes/{routeId}/run/{subPath}
+    route: {
+      id: 'health-id-registry',
+      subPath: 'Patient'
+    },
+
+    // Tracked Entity Attribute UID that stores the returned Health ID
+    healthIdTea: 'REPLACE_WITH_HEALTHID_TEA_UID',
+
+    // Which identifier in the FHIR response carries the health ID.
+    // Confirm this against the prototype — your accepted-request
+    // sample doesn't show it, since it's populated on the way back.
+    healthIdIdentifier: {
+      system: 'REPLACE_WITH_HEALTHID_SYSTEM_URI',   // e.g. http://healthid.gov.np
+      typeCode: 'REPLACE_WITH_TYPE_CODE'            // e.g. "health-id"
+    },
+
+    // FHIR profile URL from the accepted-request template
+    profile: 'http://fhir.digitalhealth.gov.np/core/StructureDefinition/np-core-patient',
+    countryCode: 'NP',
+
+    // Map of FHIR field -> TEA UID on your Tracked Entity Type.
+    // Extend/rename as needed; buildFhirPatient() reads this.
+    attributeMap: {
+      firstName:        'REPLACE_TEA_UID',
+      lastName:          'REPLACE_TEA_UID',
+      gender:            'REPLACE_TEA_UID',
+      birthDateAD:       'REPLACE_TEA_UID', // Gregorian, if stored directly
+      birthDateBS:       'REPLACE_TEA_UID', // Bikram Sambat, if that's the source of truth
+      addressText:       'REPLACE_TEA_UID',
+      ward:              'REPLACE_TEA_UID',
+      tole:              'REPLACE_TEA_UID',
+      postalCode:        'REPLACE_TEA_UID',
+      district:          'REPLACE_TEA_UID',   // display name
+      districtCode:      'REPLACE_TEA_UID',
+      municipality:      'REPLACE_TEA_UID',   // display name
+      municipalityCode:  'REPLACE_TEA_UID',
+      province:          'REPLACE_TEA_UID',   // display name
+      provinceCode:      'REPLACE_TEA_UID',
+      nationalId:        'REPLACE_TEA_UID',
+      citizenship:       'REPLACE_TEA_UID',
+      hibid:             'REPLACE_TEA_UID'
+    }
+  };
+
+  // Mutable — populated by loadConfig(). Every function below reads
+  // from this live object, so once loaded, editing the datastore
+  // entry and calling HealthId.reloadConfig() picks up changes
+  // without a redeploy.
+  let CONFIG = null;
+  let configLoadPromise = null;
+
+  function deepMerge(base, override) {
+    const out = Array.isArray(base) ? base.slice() : Object.assign({}, base);
+    if (!override) return out;
+    Object.keys(override).forEach(function (k) {
+      if (override[k] && typeof override[k] === 'object' && !Array.isArray(override[k]) &&
+          base && typeof base[k] === 'object' && !Array.isArray(base[k])) {
+        out[k] = deepMerge(base[k], override[k]);
+      } else {
+        out[k] = override[k];
+      }
+    });
+    return out;
+  }
+
+  async function loadConfig(force) {
+    if (CONFIG && !force) return CONFIG;
+    const path = '/api/dataStore/' + DATASTORE.namespace + '/' + DATASTORE.key;
+    try {
+      const resp = await fetch(path, { credentials: 'include' });
+      if (resp.status === 404) {
+        console.warn('[HealthId] No datastore config found at ' + path +
+          ' — using DEFAULT_CONFIG placeholders. Call HealthId.seedConfig() to write real values.');
+        CONFIG = DEFAULT_CONFIG;
+      } else if (!resp.ok) {
+        throw new Error('GET ' + path + ' failed: ' + resp.status + ' ' + resp.statusText);
+      } else {
+        const stored = await resp.json();
+        // Merge over defaults so a partially-filled datastore entry
+        // (e.g. attributeMap extended but route untouched) still works.
+        CONFIG = deepMerge(DEFAULT_CONFIG, stored);
+      }
+    } catch (err) {
+      console.error('[HealthId] Failed to load config from datastore, falling back to DEFAULT_CONFIG.', err);
+      CONFIG = DEFAULT_CONFIG;
+    }
+    return CONFIG;
+  }
+
+  async function ensureConfig() {
+    if (!configLoadPromise) configLoadPromise = loadConfig();
+    return configLoadPromise;
+  }
+
+  async function reloadConfig() {
+    configLoadPromise = loadConfig(true);
+    return configLoadPromise;
+  }
+
+  // One-time helper to write DEFAULT_CONFIG (or a config object you
+  // pass in) into the datastore. Run once from the console after
+  // filling in real UIDs, then delete/ignore this call going forward —
+  // edit the datastore entry directly after that.
+  async function seedConfig(configObject) {
+    const path = '/api/dataStore/' + DATASTORE.namespace + '/' + DATASTORE.key;
+    const body = configObject || DEFAULT_CONFIG;
+    let resp = await fetch(path, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (resp.status === 409) {
+      // namespace/key already exists — update instead
+      resp = await fetch(path, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    }
+    if (!resp.ok) {
+      throw new Error('seedConfig failed: ' + resp.status + ' ' + resp.statusText);
+    }
+    return reloadConfig();
+  }
+
+  // ---------------------------------------------------------------
+  // Low-level fetch helpers — relative paths, session-cookie auth
+  // ---------------------------------------------------------------
+  async function dhisGet(path) {
+    const resp = await fetch(path, { credentials: 'include' });
+    if (!resp.ok) {
+      throw new Error('GET ' + path + ' failed: ' + resp.status + ' ' + resp.statusText);
+    }
+    return resp.json();
+  }
+
+  async function dhisPost(path, body) {
+    const resp = await fetch(path, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const text = await resp.text();
+    let json;
+    try { json = text ? JSON.parse(text) : {}; } catch (e) { json = { raw: text }; }
+    if (!resp.ok) {
+      const msg = (json && (json.message || json.detail)) || resp.statusText;
+      throw new Error('POST ' + path + ' failed: ' + resp.status + ' ' + msg);
+    }
+    return json;
+  }
+
+  // ---------------------------------------------------------------
+  // 1. Fetch patient attributes via the enrollment API
+  // ---------------------------------------------------------------
+  async function fetchEnrollmentAttributes(enrollmentId) {
+    const path = '/api/tracker/enrollments/' + enrollmentId +
+      '?fields=enrollment,trackedEntity,orgUnit,program,attributes,status';
+    const enrollment = await dhisGet(path);
+
+    if (!enrollment || !enrollment.trackedEntity) {
+      throw new Error('Enrollment ' + enrollmentId + ' has no linked tracked entity');
+    }
+
+    const attrLookup = {};
+    (enrollment.attributes || []).forEach(function (a) {
+      attrLookup[a.attribute] = a.value;
+    });
+
+    return {
+      trackedEntity: enrollment.trackedEntity,
+      orgUnit: enrollment.orgUnit,
+      attributes: attrLookup
+    };
+  }
+
+  function attr(attributes, key) {
+    const uid = CONFIG.attributeMap[key];
+    return uid ? (attributes[uid] || '') : '';
+  }
+
+  // ---------------------------------------------------------------
+  // 2. Build the FHIR Patient resource expected by the Health ID system
+  // ---------------------------------------------------------------
+  function convertBsToAd(bsDateString) {
+    // Wire this to your vendored nepali-date-converter if birthDateAD
+    // isn't already stored directly. Left as a pass-through here so
+    // this file has no external dependency by default.
+    if (typeof global.NepaliDate !== 'undefined' && global.NepaliDate.toAD) {
+      return global.NepaliDate.toAD(bsDateString);
+    }
+    return bsDateString;
+  }
+
+  function buildFhirPatient(attributes) {
+    const birthDateAD = attr(attributes, 'birthDateAD') ||
+      convertBsToAd(attr(attributes, 'birthDateBS'));
+
+    return {
+      meta: { profile: [CONFIG.profile] },
+      resourceType: 'Patient',
+      active: true,
+      name: [{
+        use: 'official',
+        given: [attr(attributes, 'firstName'), attr(attributes, 'lastName')],
+        family: attr(attributes, 'lastName')
+      }],
+      gender: attr(attributes, 'gender'),
+      birthDate: birthDateAD,
+      _birthDate: {
+        extension: [{
+          url: 'http://fhir.digitalhealth.gov.np/core/StructureDefinition/np-core-bikram-sambat-date',
+          valueString: attr(attributes, 'birthDateBS')
+        }]
+      },
+      address: [{
+        use: 'home',
+        type: 'physical',
+        text: attr(attributes, 'addressText'),
+        line: [attr(attributes, 'ward'), attr(attributes, 'tole')],
+        city: attr(attributes, 'municipality'),
+        district: attr(attributes, 'district'),
+        state: attr(attributes, 'province'),
+        postalCode: attr(attributes, 'postalCode'),
+        country: CONFIG.countryCode,
+        extension: [
+          {
+            url: 'http://fhir.digitalhealth.gov.np/core/StructureDefinition/ext-nepal-province',
+            valueCoding: {
+              system: 'http://fhir.digitalhealth.gov.np/core/CodeSystem/nepal-administrative-location',
+              code: attr(attributes, 'provinceCode'),
+              display: attr(attributes, 'province')
+            }
+          },
+          {
+            url: 'http://fhir.digitalhealth.gov.np/core/StructureDefinition/ext-nepal-district',
+            valueCoding: {
+              system: 'http://fhir.digitalhealth.gov.np/core/CodeSystem/nepal-administrative-location',
+              code: attr(attributes, 'districtCode'),
+              display: attr(attributes, 'district')
+            }
+          },
+          {
+            url: 'http://fhir.digitalhealth.gov.np/core/StructureDefinition/ext-nepal-local-level',
+            valueCoding: {
+              system: 'http://fhir.digitalhealth.gov.np/core/CodeSystem/nepal-administrative-location',
+              code: attr(attributes, 'municipalityCode'),
+              display: attr(attributes, 'municipality')
+            }
+          }
+        ]
+      }],
+      identifier: [
+        {
+          use: 'official',
+          type: { coding: [{ system: 'http://terminology.hl7.org/CodeSystem/v2-0203', code: 'NI', display: 'National unique individual identifier' }] },
+          system: 'http://donidcr.gov.np',
+          value: attr(attributes, 'nationalId')
+        },
+        {
+          use: 'official',
+          type: { coding: [{ system: 'http://fhir.digitalhealth.gov.np/core/CodeSystem/np-core-identifier-type', code: 'citizenship-number', display: 'Nepal Citizenship Certificate Number' }] },
+          system: 'http://moha.gov.np',
+          value: attr(attributes, 'citizenship')
+        },
+        {
+          use: 'official',
+          type: { coding: [{ system: 'http://fhir.digitalhealth.gov.np/core/CodeSystem/np-core-identifier-type', code: 'health-insurance-id', display: 'Nepal Health Insurance ID' }] },
+          system: 'http://hib.gov.np',
+          value: attr(attributes, 'hibid')
+        }
+      ]
+    };
+  }
+
+  // ---------------------------------------------------------------
+  // 3. Send to the Health ID system via the DHIS2 Route
+  // ---------------------------------------------------------------
+  async function sendToHealthIdSystem(fhirPatient) {
+    const path = '/api/routes/' + CONFIG.route.id + '/run/' + CONFIG.route.subPath;
+    return dhisPost(path, fhirPatient);
+  }
+
+  function extractHealthId(fhirResponse) {
+    const identifiers = (fhirResponse && fhirResponse.identifier) || [];
+    const match = identifiers.find(function (id) {
+      const code = id.type && id.type.coding && id.type.coding[0] && id.type.coding[0].code;
+      return code === CONFIG.healthIdIdentifier.typeCode ||
+        id.system === CONFIG.healthIdIdentifier.system;
+    });
+    return match ? match.value : null;
+  }
+
+  // ---------------------------------------------------------------
+  // 4. Write the health ID back onto the TEI
+  //    (POST + importStrategy=UPDATE — Tracker API takes no PUT)
+  // ---------------------------------------------------------------
+  async function updateHealthIdTea(trackedEntityId, healthId) {
+    const payload = {
+      trackedEntities: [{
+        trackedEntity: trackedEntityId,
+        attributes: [{ attribute: CONFIG.healthIdTea, value: healthId }]
+      }]
+    };
+    return dhisPost('/api/tracker?importStrategy=UPDATE', payload);
+  }
+
+  // ---------------------------------------------------------------
+  // Orchestrator
+  // ---------------------------------------------------------------
+  async function validateOrCreate(enrollmentId) {
+    try {
+      await ensureConfig();
+      const { trackedEntity, attributes } = await fetchEnrollmentAttributes(enrollmentId);
+
+      const existing = attributes[CONFIG.healthIdTea];
+      if (existing) {
+        return { status: 'already-linked', healthId: existing, error: null, raw: null };
+      }
+
+      const fhirPatient = buildFhirPatient(attributes);
+      const response = await sendToHealthIdSystem(fhirPatient);
+      const healthId = extractHealthId(response);
+
+      if (!healthId) {
+        return { status: 'error', healthId: null, error: 'Health ID system response did not include a health ID', raw: response };
+      }
+
+      await updateHealthIdTea(trackedEntity, healthId);
+
+      return { status: 'matched', healthId: healthId, error: null, raw: response };
+      // NB: the Health ID system's response doesn't tell you match vs
+      // create (per the prototype's own contract), so 'matched' here
+      // just means "linked successfully" — rename if a flag shows up.
+    } catch (err) {
+      return { status: 'error', healthId: null, error: err.message, raw: null };
+    }
+  }
+
+  global.HealthId = {
+    // Call once (e.g. on plugin load) so CONFIG is populated before
+    // the button is even enabled. validateOrCreate() also calls this
+    // itself, so it's not strictly required, just avoids a first-click delay.
+    init: ensureConfig,
+    getConfig: function () { return CONFIG; }, // null until init()/validateOrCreate() has run once
+    reloadConfig: reloadConfig,
+    seedConfig: seedConfig, // one-time: writes DEFAULT_CONFIG (or your object) into the datastore
+
+    validateOrCreate: validateOrCreate,
+
+    // exposed individually in case you want to call steps separately
+    // (e.g. build the FHIR resource for a preview before sending) —
+    // call HealthId.init() first if using these directly, since they
+    // read CONFIG synchronously.
+    fetchEnrollmentAttributes: fetchEnrollmentAttributes,
+    buildFhirPatient: buildFhirPatient,
+    sendToHealthIdSystem: sendToHealthIdSystem,
+    extractHealthId: extractHealthId,
+    updateHealthIdTea: updateHealthIdTea
+  };
+
+})(window);
+</script>
+</body>
+</html>

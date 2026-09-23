@@ -38,14 +38,14 @@ async function loadDataInCard() {
 			explicitEvent = await fetchJSON(explicitEventUrl);
 		}
 
-		const meUrl = "../../../api/me.json?";
+		let meUrl = "../../../api/me.json?";
 		meUrl += "fields=username,firstName,surname,phoneNumber,email,jobTitle,";
 		meUrl += "organisationUnits[id,name,shortName,displayName]";
 		
 		const me = await fetchJSON(meUrl);
 
-		const ouUrl =	"../../../api/organisationUnits/";
-		ouUrl += orgUnitId;
+		let ouUrl =	"../../../api/organisationUnits/";
+		ouUrl += (orgUnitId == 'null' || orgUnitId == undefined) ? me.organisationUnits[0]?.id : orgUnitId;
 		ouUrl += "?fields=id,name,displayName,code,";
 		ouUrl += "parent[id,name,displayName,code,parent[id,name,displayName,code,parent[id,name,displayName,code,parent[id,name,displayName,code]]]]";
 		const orgUnit = await fetchJSON(ouUrl);
@@ -61,7 +61,7 @@ async function loadDataInCard() {
 
 		// if cardConfig has path
 		if (cardToRender.path) {
-			const url = "../../../api/apps/Patient-Cards/" + cardToRender.path;
+			let url = "../../../api/apps/Patient-Cards/" + cardToRender.path;
 			url += "?teiId=" + teiId + "&enrollmentId=" + enrollmentId + "&programId=" + programId +	"&orgUnitId=" +	orgUnitId;
 			
 			window.location.replace(url);
@@ -236,13 +236,13 @@ async function loadDataInCard() {
 						if (key === "ou6") {
 							ouValue = orgUnit[ouValueKey];
 						} else if (key === "ou5") {
-							ouValue = orgUnit.parent[ouValueKey];
+							ouValue = orgUnit?.parent?.[ouValueKey];
 						} else if (key === "ou4") {
-							ouValue = orgUnit.parent.parent[ouValueKey];
+							ouValue = orgUnit.parent?.parent?.[ouValueKey];
 						} else if (key === "ou3") {
-							ouValue = orgUnit.parent.parent.parent[ouValueKey];
+							ouValue = orgUnit.parent?.parent?.parent?.[ouValueKey];
 						} else if (key === "ou2") {
-							ouValue = orgUnit.parent.parent.parent.parent[ouValueKey];
+							ouValue = orgUnit.parent?.parent?.parent?.parent?.[ouValueKey];
 						}
 						if (ouValue && ouValue != undefined) {
 							console.log(placeholder + " => " + ouValue);
