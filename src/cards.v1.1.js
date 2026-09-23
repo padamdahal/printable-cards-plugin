@@ -109,124 +109,6 @@ async function loadDataInCard() {
 				return section.programStage ? events.filter((ev) => ev.programStage == section.programStage) : events;
 			}
 
-			/**
-			 * Resolve {uid}, {uid.attr}, {event.attr}, {occurredAt}, {eventIndex}
-			 * placeholders in a raw HTML string against a single event.
-			 * Only touches tokens that match — all other HTML is left byte-for-byte intact.
-			 */
-			function resolveEventPlaceholders(html, event, eventIndex) {
-				// Matches {anything} — we decide inside whether we can resolve it
-				return html.replace(/\{([^}]+)\}/g, (match, expr) => {
-					const parts  = expr.split('.');
-					const key    = parts[0];
-					const subKey = parts[1]; // may be undefined
-
-					// ── Built-ins ──────────────────────────────────────────────
-					if (key === 'eventIndex') return String(eventIndex);
-
-					// {event.xxx} — event-level field
-					if (key === 'event') {
-						const val = event[subKey || 'status'];
-						if (val == null) return match;
-						resolvedPlaceholders.add(match);
-						return val;
-					}
-
-					// {occurredAt} / {enrolledAt} — event-level date shorthand
-					if (key === 'occurredAt' || key === 'enrolledAt') {
-						const val = event[key];
-						if (!val) return match;
-						resolvedPlaceholders.add(match);
-						return isDate(val)
-							? NepaliFunctions.AD2BS(val.split('T')[0], 'YYYY-MM-DD') + ' (' + val.split('T')[0] + ')'
-							: val;
-					}
-
-					// ── Data value lookup by UID ───────────────────────────────
-					const dv = (event.dataValues || []).find(d => d.dataElement === key);
-					if (!dv) return match; // not found — leave placeholder as-is
-
-					let val;
-					const dvKey = subKey || 'value';
-
-					if (Object.hasOwn(optionSetCollection, key)) {
-						const opt = optionSetCollection[key]?.find(o => o.code === dv.value);
-						val = (!subKey || subKey === 'value')
-							? (opt ? opt.name : dv.value)
-							: dv[dvKey];
-					} else if (dvKey === 'occurredAt' || dvKey === 'enrolledAt') {
-						val = event[dvKey];
-					} else {
-						val = dv[dvKey] !== undefined ? dv[dvKey] : dv.value;
-					}
-
-					if (val != null && isDate(String(val))) {
-						val = NepaliFunctions.AD2BS(String(val).split('T')[0], 'YYYY-MM-DD') + ' (' + String(val).split('T')[0] + ')';
-					}
-
-					if (val != null && val !== '') {
-						resolvedPlaceholders.add(match);
-						return String(val);
-					}
-					return match; // leave unreplaced rather than blanking it here
-				});
-			}
-
-			/**
-			 * Find every element with data-repeat="events" inside the section HTML,
-			 * get the exact outer HTML of that element as the per-event template,
-			 * expand it once per matching event, and splice the results back in place
-			 * of the original element — leaving all surrounding HTML untouched.
-			 *
-			 * Works on any element tag: <tr>, <div>, <li>, etc.
-			 * Optional data-stage attribute narrows to a specific program stage.
-			 */
-			function expandRepeatElements(htmlStr, section) {
-				// Use a temporary DOM node so we can querySelector cleanly
-				const tmp = document.createElement('div');
-				tmp.innerHTML = htmlStr;
-
-				tmp.querySelectorAll('[data-repeat="events"]').forEach(templateEl => {
-					const stageFilter = templateEl.getAttribute('data-stage') || section.programStage || null;
-					const mode        = section.mode || 'history';
-
-					// Collect events
-					let repeatEvents = explicitEvent ? [explicitEvent] : (events || []);
-					if (stageFilter) {
-						repeatEvents = repeatEvents.filter(ev => ev.programStage === stageFilter);
-					}
-					if (mode === 'today') {
-						const today = new Date().toISOString().split('T')[0];
-						repeatEvents = repeatEvents.filter(ev =>
-							(ev.occurredAt || '').substring(0, 10) === today
-						);
-					}
-					// Sort newest-first so eventIndex 1 = most recent
-					repeatEvents = [...repeatEvents].sort((a, b) =>
-						(b.occurredAt || '').localeCompare(a.occurredAt || '')
-					);
-
-					// Get the exact outer HTML of the template element,
-					// then strip only the data-repeat / data-stage attributes from the clone's tag
-					const rawTemplate = templateEl.outerHTML
-						.replace(/\s+data-repeat="events"/, '')
-						.replace(/\s+data-stage="[^"]*"/, '');
-
-					// Stamp once per event, substituting placeholders each time
-					const expandedHtml = repeatEvents
-						.map((ev, i) => resolveEventPlaceholders(rawTemplate, ev, i + 1))
-						.join('\n');
-
-					// Replace the original element with the expanded HTML in-place
-					const range = document.createRange();
-					range.selectNode(templateEl);
-					const frag = range.createContextualFragment(expandedHtml);
-					templateEl.parentNode.replaceChild(frag, templateEl);
-				});
-
-				return tmp.innerHTML;
-			}
-
 			cardSections.forEach((section) => {
 				console.log("Processing card section.");
 				var roughHtmlHeader = section.htmlHeader;
@@ -235,19 +117,18 @@ async function loadDataInCard() {
 				var roughHtmlFooter = section.htmlFooter;
 				const htmlFooter = roughHtmlFooter ? roughHtmlFooter.replace(/^\s*<table[^>]*>\s*<tbody>/, "") : "";
 
-				// Expand data-repeat="events" elements FIRST, before the plain placeholder loop
-				var htmlBody = expandRepeatElements(section.htmlBody, section);
+				//if (section.type == "single") {
+					var htmlBody = section.htmlBody;
+					const valuePlaceholders = htmlBody.match(regex) || [];
 
-				const valuePlaceholders = htmlBody.match(regex) || [];
-
-				valuePlaceholders.forEach((placeholder) => {
-					let key = placeholder.replace(/[{}]/g, "").split(".")[0];
-					let valueKey = placeholder.replace(/[{}]/g, "").split(".")[1];
-					let value;
-					let attr = attributes.find((a) => a.attribute == key);
+					valuePlaceholders.forEach((placeholder) => {
+						let key = placeholder.replace(/[{}]/g, "").split(".")[0];
+						let valueKey = placeholder.replace(/[{}]/g, "").split(".")[1];
+						let value;
+						let attr = attributes.find((a) => a.attribute == key);
 
 						// Replace placeholders where it matches attributes
-					if (attr) {
+						if (attr) {
 							if (Object.hasOwn(optionSetCollection, attr.attribute)) {
 								const option = optionSetCollection[attr.attribute]?.find(
 									(opt) => opt.code === attr.value,
@@ -279,19 +160,22 @@ async function loadDataInCard() {
 								resolvedPlaceholders.add(placeholder);
 								htmlBody = htmlBody.replaceAll(placeholder, value);
 							}
-					}
+						}
 
-					// Replace placeholders where it matches event/dataValues
-					const mode = section.mode ? section.mode : "history";
-					const filteredEvents = getFilteredEvents(section, mode);
+						// Replace placeholders where it matches event/dataValues
+						const mode = section.mode ? section.mode : "history";
+						const filteredEvents = getFilteredEvents(section, mode);
 
-					filteredEvents.forEach((event) => {
+						filteredEvents.forEach((event) => {
+							
 							let eventValue;
+
 							if (key === "event") {
 								eventValue = !valueKey ? event["status"] : event[valueKey];
 							} else {
 								// filter datavalues with dataElement ID
 								let dataValue = event.dataValues.find((dv) => dv.dataElement == key);
+								
 								if (dataValue) {
 									// Check if dataElement key exists in optionSetCollection
 									if (Object.hasOwn(optionSetCollection, dataValue.dataElement)) {
@@ -367,6 +251,79 @@ async function loadDataInCard() {
 					});
 
 					cardHtmlString += htmlHeader + htmlBody + htmlFooter;
+				//}
+
+				/*
+				if (section.type == "repeatable") {
+					var fullHtml = "";
+					const filteredEvents = getFilteredEvents(section, "history");
+
+					filteredEvents.forEach((event) => {
+						const completeHtmlBody = section.htmlBody;
+
+						// Strip off the table tags from the htmlBody
+						var htmlBody = completeHtmlBody
+							.replace(/^\s*<table[^>]*>\s*<tbody>/, "")
+							.replace(/<\/tbody>\s*<\/table>\s*$/, "");
+						//console.log(htmlBody);
+
+						const regex = /\{.+?\}/g;
+						const valuePlaceholders = htmlBody.match(regex) || [];
+
+						valuePlaceholders.forEach((placeholder) => {
+							//console.log(placeholder);
+							let key = placeholder.replace(/[{}]/g, "").split(".")[0];
+							let valueKey = placeholder.replace(/[{}]/g, "").split(".")[1];
+							let value;
+							if (key === "event") {
+								value = !valueKey ? event["status"] : event[valueKey];
+								resolvedPlaceholders.add(placeholder);
+								htmlBody = htmlBody.replaceAll(placeholder, value);
+							} else {
+								// filter datavalues with dataElement ID
+								let dataValue = event.dataValues.find((dv) => dv.dataElement == key,);
+
+								if (dataValue) {
+									// Check if dataElement key exists in optionSetCollection
+									if (Object.hasOwn(optionSetCollection, dataValue.dataElement)) {
+										const option = optionSetCollection[dataValue.dataElement]?.find((opt) => opt.code === dataValue.value);
+										const name = option ? option.name : null;
+										if (!valueKey || valueKey == "value") {
+											value = name;
+										} else {
+											value = dataValue[valueKey];
+										}
+
+										if (isDate(value)) {
+											value = NepaliFunctions.AD2BS(value.split("T")[0], "YYYY-MM-DD") + " (" + value.split("T")[0] + ")";
+										}
+
+										resolvedPlaceholders.add(placeholder);
+										htmlBody = htmlBody.replaceAll(placeholder, value);
+									} else {
+										let dvKey = valueKey || "value";
+										value = dataValue[dvKey];
+
+										if (isDate(value)) {
+											value = NepaliFunctions.AD2BS(value.split("T")[0], "YYYY-MM-DD") + " (" + value.split("T")[0] + ")";
+										}
+										
+										resolvedPlaceholders.add(placeholder);
+										htmlBody = htmlBody.replaceAll(placeholder, value);
+									}
+								} else {
+									htmlBody = htmlBody.replaceAll(placeholder, "NA");
+								}
+							}
+						});
+						fullHtml += htmlBody;
+					});
+					cardHtmlString += htmlHeader + fullHtml + htmlFooter;
+				}*/
+
+				/*if (section.type != "repeatable" && section.type != "single") {
+					console.log("Section type is not valid");
+				}*/
 			});
 
 			// Resolve [[suffix:key.valueKey:suffix text]] markers embedded in card templates.
